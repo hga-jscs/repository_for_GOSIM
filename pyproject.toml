@@ -39,7 +39,7 @@ dependencies = [
     "tenacity",
     "rich",
     "python-dotenv",
-    "typer",
+    "typer>=0.12.3",
     "platformdirs",
     "textual",
     "prompt_toolkit",
@@ -91,6 +91,7 @@ mini = "minisweagent.run.mini:app"
 mini-swe-agent = "minisweagent.run.mini:app"
 mini-extra = "minisweagent.run.utilities.mini_extra:main"
 mini-e= "minisweagent.run.utilities.mini_extra:main"
+arcbench-agent = "minisweagent.run.arcbench:app"
 
 [tool.setuptools]
 include-package-data = true

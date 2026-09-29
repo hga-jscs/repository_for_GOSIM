@@ -4,6 +4,10 @@ patch.txt
 exit_statuses*.yaml
 preds.json
 *.traj.json
+arcbench-runs/
+.secrets/
+deepseek.key
+tex.txt
 .env
 traj.json
 .claude/**
