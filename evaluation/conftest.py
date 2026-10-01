@@ -3,10 +3,12 @@ import socket
 import subprocess
 import sys
 import time
+from contextlib import ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Browser, Page, expect, sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from processes import ProcessGroup
@@ -29,6 +31,11 @@ def pytest_addoption(parser):
     parser.addoption("--target", choices=["github", "sheet"], required=True)
     parser.addoption("--browser-channel", default=None)
     parser.addoption("--full", action="store_true", help="Include cross-module checks for full applications")
+    parser.addoption("--implemented", default="", help="Comma-separated requirement IDs already attempted")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "requirements(*ids): public requirements checked by this workflow")
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +45,10 @@ def application(request, tmp_path_factory):
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
     tools = WorkspaceTools(workspace)
-    environment = tools.command_environment() | {"PORT": str(port)}
+    environment = tools.command_environment() | {
+        "PORT": str(port),
+        "ARC_DB_FILE": str(tmp_path_factory.mktemp("database") / "application.db"),
+    }
     arguments = ["cmd.exe", "/d", "/c", "npm start"] if os.name == "nt" else ["npm", "start"]
     log_path = tmp_path_factory.mktemp("server") / "output.log"
     request.config.stash[SERVER_LOG] = log_path
@@ -97,10 +107,38 @@ def page(browser):
     context.close()
 
 
+@dataclass
+class Sessions:
+    browser: Browser
+    resources: ExitStack
+    pages: dict[str, Page]
+
+    def open(self, name: str) -> Page:
+        assert name not in self.pages
+        context = self.browser.new_context()
+        self.resources.callback(context.close)
+        page = context.new_page()
+        page.set_default_timeout(10000)
+        self.pages[name] = page
+        return page
+
+
+@pytest.fixture
+def sessions(page, browser):
+    with ExitStack() as resources:
+        yield Sessions(browser, resources, {"primary": page})
+
+
 def pytest_collection_modifyitems(config, items):
     target = config.getoption("--target")
+    implemented = set(filter(None, config.getoption("--implemented").split(",")))
     for item in items:
         if not item.name.startswith(f"test_{target}_"):
             item.add_marker(pytest.mark.skip(reason="Different application task"))
         if "_full_" in item.name and not config.getoption("--full"):
             item.add_marker(pytest.mark.skip(reason="Requires a full application"))
+        marker = item.get_closest_marker("requirements")
+        if marker:
+            item.user_properties.append(("requirements", ",".join(marker.args)))
+        if implemented and (marker is None or not set(marker.args) <= implemented):
+            item.add_marker(pytest.mark.skip(reason="Requirements belong to a later implementation batch"))

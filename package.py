@@ -32,12 +32,13 @@ def package(destination: Path) -> dict:
         raise FileExistsError(f"Refusing to overwrite an existing archive: {destination}")
     files = FILES + tuple(json.loads((source / "template-files.json").read_text(encoding="utf-8")))
     contents = {name: (source / name).read_bytes() for name in files}
-    for name in ("conftest.py", "test_browser.py", "test_github_workflows.py", "test_sheet_workflows.py"):
-        contents["evaluation/" + name] = (source / "evaluation" / name).read_bytes()
+    for path in [source / "evaluation/conftest.py", *sorted((source / "evaluation").glob("test_*.py"))]:
+        contents["evaluation/" + path.name] = path.read_bytes()
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name, content in sorted(contents.items()):
             entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            entry.create_system = 3
             entry.compress_type = zipfile.ZIP_DEFLATED
             entry.external_attr = 0o100644 << 16
             archive.writestr(entry, content)

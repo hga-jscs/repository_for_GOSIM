@@ -125,6 +125,8 @@ def test_extracted_archive_starts_with_runner_files_before_model_connection(
         b"      - id: R1\n        name: First page\n        type: ATOMIC\n"
         b"  - id: SECOND\n    name: Second module\n    children:\n"
         b"      - id: R2\n        name: Second page\n        type: ATOMIC\n"
+        b"  - id: THIRD\n    name: Third module\n    children:\n"
+        b"      - id: R3\n        name: Third page\n        type: ATOMIC\n"
     )
     (workspace / "requirements/requirements.yaml").write_bytes(existing["requirements/requirements.yaml"])
     package(tmp_path / "submission.zip")
@@ -154,7 +156,11 @@ def test_extracted_archive_starts_with_runner_files_before_model_connection(
                 "--max-steps",
                 "1",
                 "--time-limit",
-                "60",
+                "4",
+                "--integration-time-limit",
+                "0",
+                "--repair-time-limit",
+                "0",
             ],
             cwd=tmp_path / "agent",
             env=environment
@@ -172,7 +178,7 @@ def test_extracted_archive_starts_with_runner_files_before_model_connection(
             timeout=60,
         )
     assert result.returncode == 1 and "Traceback" not in result.stderr, result.stdout + result.stderr
-    assert "APIConnectionError" in result.stdout
+    assert "APIConnectionError" in result.stdout or "APITimeoutError" in result.stdout
     assert "local-startup-test-key" not in result.stdout + result.stderr
     assert all((workspace / part / "package.json").is_file() for part in ("frontend", "backend"))
     assert all((workspace / name).read_bytes() == content for name, content in existing.items())
@@ -181,12 +187,16 @@ def test_extracted_archive_starts_with_runner_files_before_model_connection(
     assert (workspace / ".arc/traceability").is_dir()
     events = [json.loads(line) for line in (workspace / ".arc/runner-events.jsonl").read_text().splitlines()]
     assert any(event.get("type") == "runner_state" and event.get("state") == "running" for event in events)
-    assert any(event.get("node_id") == "R1" and event.get("status") == "running" for event in events)
+    assert all(
+        any(event.get("node_id") == identifier and event.get("status") == "running" for event in events)
+        for identifier in ("R1", "R2", "R3")
+    )
     assert all(event.get("status") not in {"completed", "passed"} for event in events)
     summary = json.loads(next((tmp_path / "template1-runs").glob("*/summary.json")).read_text(encoding="utf-8"))
-    assert summary["model_requests_stopped"] and not summary["token_accounting_complete"]
-    assert len(summary["results"]) == 1 and summary["results"][0]["status"] == "api_unavailable"
-    assert summary["usage"]["request_attempts"] == summary["usage"]["failed_requests"] == 5
+    assert not summary["model_requests_stopped"] and not summary["token_accounting_complete"]
+    assert [stage["requirements"] for stage in summary["results"]] == [["R1"], ["R2"], ["R3"]]
+    assert all(stage["status"] in {"api_unavailable", "time_limit"} for stage in summary["results"])
+    assert summary["usage"]["request_attempts"] == summary["usage"]["failed_requests"] >= 3
     assert summary["usage"]["calls"] == 0 and summary["usage"]["input_tokens"] == 0
     assert summary["verification"][0]["command"] == "validate evaluator scripts"
     assert not summary["delivery_ready"] and not summary["all_batches_finished"]
@@ -261,7 +271,8 @@ def test_archive_is_deterministic_and_entrypoint_accepts_official_arguments(tmp_
         text=True,
     )
     assert collected.returncode == 0, collected.stdout + collected.stderr
-    assert "20 tests collected" in collected.stdout
+    assert "test_sheet_full_seed_workbook_is_available_and_directly_reopenable" in collected.stdout
+    assert "test_github_registration_controls" in collected.stdout
 
 
 def test_official_runtime_records_implementation_without_claiming_test_pass(tmp_path: Path) -> None:

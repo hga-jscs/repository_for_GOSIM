@@ -12,7 +12,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, BadReque
 from openai.types.chat import ChatCompletion
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from agent import CodingAgent, Usage
+from agent import CodingAgent, Usage, compact_messages
 from model_requests import request_retry_delay, retryable_model_error
 from tools import WorkspaceTools
 
@@ -150,7 +150,7 @@ def test_known_usage_accumulates_reported_tokens_with_optional_cache_details(tmp
 
 
 @contextmanager
-def failing_tcp_endpoint(disconnect: bool = True):
+def failing_tcp_endpoint(disconnect: bool = True, status: int | None = None):
     """Exercise actual sockets and SDK transport errors without returning model responses."""
     stop = Event()
     connections = []
@@ -166,6 +166,25 @@ def failing_tcp_endpoint(disconnect: bool = True):
                 except TimeoutError:
                     continue
                 connections.append(connection)
+                if status is not None:
+                    connection.settimeout(1)
+                    request = b""
+                    while b"\r\n\r\n" not in request:
+                        request += connection.recv(65536)
+                    headers, request_body = request.split(b"\r\n\r\n", 1)
+                    length = next(
+                        int(line.split(b":", 1)[1])
+                        for line in headers.split(b"\r\n")
+                        if line.lower().startswith(b"content-length:")
+                    )
+                    while len(request_body) < length:
+                        request_body += connection.recv(65536)
+                    body = json.dumps({"error": {"message": "Invalid API key", "code": "invalid_api_key"}}).encode()
+                    connection.sendall(
+                        f"HTTP/1.1 {status} Unauthorized\r\nContent-Type: application/json\r\n"
+                        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
+                        + body
+                    )
                 if disconnect:
                     connection.close()
 
@@ -181,7 +200,7 @@ def failing_tcp_endpoint(disconnect: bool = True):
             assert not thread.is_alive()
 
 
-def test_real_disconnect_exhaustion_preserves_progress_and_stops_later_requests(tmp_path: Path) -> None:
+def test_real_disconnect_exhaustion_preserves_progress_and_allows_later_continuation(tmp_path: Path) -> None:
     secret = "private-local-transport-test-key"
     tools = WorkspaceTools(tmp_path / "application", (secret,))
     tools.write_file("existing.txt", "completed earlier stage")
@@ -205,17 +224,20 @@ def test_real_disconnect_exhaustion_preserves_progress_and_stops_later_requests(
         assert result["usage"]["failed_requests"] == 3
         assert result["usage"]["calls"] == result["usage"]["input_tokens"] == 0
         assert result["token_accounting_complete"] is False
-        assert agent.requests_stopped and not agent.token_accounting_complete
+        assert not agent.requests_stopped and not agent.token_accounting_complete
         assert len(result["api_failures"]) == 3
         assert all(failure["retryable"] for failure in result["api_failures"])
-        later = agent.run("No further requests after exhaustion", "later-stage")
+        later = agent.run("Continue the unfinished work", "later-stage", resume_from="failed-stage")
         assert later["status"] == "api_unavailable"
-        assert len(connections) == 3
-        assert agent.usage.request_attempts == agent.usage.failed_requests == 3
+        assert len(connections) == 6
+        assert agent.usage.request_attempts == agent.usage.failed_requests == 6
     checkpoint = json.loads((logs / "failed-stage.json").read_text(encoding="utf-8"))
     assert checkpoint["result"]["status"] == "api_unavailable"
     assert len(checkpoint["result"]["api_failures"]) == 3
     assert checkpoint["usage"]["request_attempts"] == 3
+    continuation = json.loads((logs / "later-stage.json").read_text(encoding="utf-8"))
+    assert continuation["messages"][:-1] == checkpoint["messages"]
+    assert continuation["messages"][-1] == {"role": "user", "content": "Continue the unfinished work"}
     assert "[REDACTED]" in json.dumps(checkpoint)
     assert secret not in json.dumps(checkpoint)
     assert (logs / "earlier.json").read_text() == '{"status":"finished"}'
@@ -240,19 +262,25 @@ def test_real_stalled_connection_obeys_request_budget_and_stage_deadline(tmp_pat
             WorkspaceTools(tmp_path / "application"),
             tmp_path / "logs",
             deadline=time.monotonic() + 0.4 if stage_deadline else None,
-            request_time_limit=10 if stage_deadline else 0.4,
-            max_request_attempts=5,
+            request_time_limit=10 if stage_deadline else 0.15,
+            retry_time_limit=10 if stage_deadline else 1,
+            max_request_attempts=3,
             retry_delay=0,
         )
         started = time.monotonic()
         result = agent.run("Exercise actual transport timeout", "timeout-stage")
         assert time.monotonic() - started < 3
-        assert result["status"] == "api_unavailable"
-        assert len(connections) == result["usage"]["request_attempts"] == 1
-        assert result["usage"]["failed_requests"] == 1
+        assert result["status"] == ("time_limit" if stage_deadline else "api_unavailable")
+        expected_attempts = 1 if stage_deadline else 3
+        assert len(connections) == result["usage"]["request_attempts"] == expected_attempts
+        assert result["usage"]["failed_requests"] == expected_attempts
         assert result["api_failures"][0]["type"] == "APITimeoutError"
         assert not agent.token_accounting_complete
-        assert agent.requests_stopped
+        assert not agent.requests_stopped
+        agent.deadline = time.monotonic() + 0.2
+        later = agent.run("Try again in the later stage", "later-timeout-stage")
+        assert later["usage"]["request_attempts"] >= 1
+        assert len(connections) > expected_attempts
 
 
 def test_backoff_that_exceeds_remaining_budget_stops_without_sleeping(tmp_path: Path) -> None:
@@ -270,6 +298,7 @@ def test_backoff_that_exceeds_remaining_budget_stops_without_sleeping(tmp_path: 
             WorkspaceTools(tmp_path / "application"),
             tmp_path / "logs",
             request_time_limit=0.4,
+            retry_time_limit=0.4,
             retry_delay=10,
         )
         started = time.monotonic()
@@ -278,7 +307,7 @@ def test_backoff_that_exceeds_remaining_budget_stops_without_sleeping(tmp_path: 
         assert result["status"] == "api_unavailable"
         assert len(connections) == result["usage"]["request_attempts"] == 1
         assert result["api_failures"][0]["retry_in_seconds"] is None
-        assert agent.requests_stopped
+        assert not agent.requests_stopped
 
 
 def test_expired_deadline_makes_no_transport_request(tmp_path: Path) -> None:
@@ -301,3 +330,102 @@ def test_expired_deadline_makes_no_transport_request(tmp_path: Path) -> None:
         assert result["status"] == "time_limit"
         assert result["usage"]["request_attempts"] == result["usage"]["calls"] == 0
         assert connections == []
+
+
+def test_real_authentication_failure_stops_all_later_requests(tmp_path: Path) -> None:
+    with (
+        failing_tcp_endpoint(status=401) as (endpoint, connections),
+        OpenAI(api_key="invalid-local-test", base_url=endpoint, http_client=httpx.Client(trust_env=False)) as client,
+    ):
+        agent = CodingAgent(
+            client,
+            "unused",
+            WorkspaceTools(tmp_path / "application"),
+            tmp_path / "logs",
+            request_time_limit=1,
+            retry_time_limit=3,
+        )
+        result = agent.run("Test an actual authentication rejection", "authentication")
+        assert result["status"] == "api_error"
+        assert not result["api_failures"][0]["retryable"]
+        assert agent.requests_stopped
+        assert agent.run("A later stage must not retry this key", "later")["status"] == "api_error"
+        assert len(connections) == 1
+
+
+def test_real_timeout_retries_are_bounded_by_total_budget(tmp_path: Path) -> None:
+    with (
+        failing_tcp_endpoint(disconnect=False) as (endpoint, connections),
+        OpenAI(api_key="local-budget-test", base_url=endpoint, http_client=httpx.Client(trust_env=False)) as client,
+    ):
+        agent = CodingAgent(
+            client,
+            "unused",
+            WorkspaceTools(tmp_path / "application"),
+            tmp_path / "logs",
+            request_time_limit=0.15,
+            retry_time_limit=0.45,
+            max_request_attempts=10,
+            retry_delay=0,
+        )
+        started = time.monotonic()
+        result = agent.run("Enforce the complete retry budget", "budget")
+        assert 0.4 <= time.monotonic() - started < 2
+        assert 2 <= len(connections) <= 3
+        assert result["usage"]["request_attempts"] == len(connections)
+        assert result["status"] == "api_unavailable" and not agent.requests_stopped
+
+
+def test_compaction_counts_source_arguments_preserves_pairing_and_recent_rounds() -> None:
+    messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "full requirements"}]
+    for index in range(10):
+        messages.extend(
+            [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": str(index),
+                            "type": "function",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": json.dumps({"path": f"part-{index}.js", "content": "source" * 3000}),
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": str(index), "content": '{"written":true}'},
+            ]
+        )
+    original = json.dumps(messages)
+    compacted = compact_messages(messages, keep_rounds=2, character_limit=40000)
+    assert len(json.dumps(compacted)) <= 40000
+    assert compacted[:2] == messages[:2] and compacted[-4:] == messages[-4:]
+    assert json.loads(compacted[2]["tool_calls"][0]["function"]["arguments"])["path"] == "part-0.js"
+    assert "Older argument omitted" in compacted[2]["tool_calls"][0]["function"]["arguments"]
+    assert original == json.dumps(messages)
+    calls = [call["id"] for message in compacted for call in message.get("tool_calls", [])]
+    assert calls == [message["tool_call_id"] for message in compacted if message["role"] == "tool"]
+
+
+def test_compaction_evicts_whole_older_rounds_and_preserves_an_action_index() -> None:
+    messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "authoritative requirements"}]
+    for index in range(40):
+        messages.extend(
+            [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {"id": str(index), "function": {"name": "read_files", "arguments": '{"paths":["app.js"]}'}}
+                    ],
+                },
+                {"role": "tool", "tool_call_id": str(index), "content": "source" * 100},
+            ]
+        )
+    compacted = compact_messages(messages, keep_rounds=2, character_limit=4500)
+    assert len(json.dumps(compacted)) <= 4500
+    assert compacted[:2] == messages[:2] and compacted[-4:] == messages[-4:]
+    assert compacted[2]["role"] == "user" and "Earlier tool history omitted" in compacted[2]["content"]
+    calls = [call["id"] for message in compacted for call in message.get("tool_calls", [])]
+    assert len(calls) < 40
+    assert calls == [message["tool_call_id"] for message in compacted if message["role"] == "tool"]

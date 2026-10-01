@@ -58,6 +58,35 @@ def test_command_returns_real_exit_status_and_redacts_output(tmp_path: Path) -> 
     assert "[REDACTED]" in result["output"] and "private-model-key" not in result["output"]
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Tests the Linux Bash pipeline executor")
+@pytest.mark.parametrize(
+    ("managed", "exit_status"),  # noqa: PT006 - AGENTS.md requires tuples.
+    [(False, 7), (False, 0), (True, 7), (True, 0)],
+)
+def test_linux_pipeline_preserves_upstream_status_with_and_without_server(
+    tmp_path: Path, managed: bool, exit_status: int
+) -> None:
+    tools = WorkspaceTools(tmp_path)
+    script = "import sys\n"
+    if managed:
+        tools.write_file("backend/package.json", '{"scripts":{"start":"node server.js"}}')
+        tools.write_file(
+            "backend/server.js", "require('http').createServer((q,r)=>r.end('application')).listen(process.env.PORT);"
+        )
+        script += (
+            "import os,urllib.request\nassert urllib.request.urlopen(os.environ['BASE_URL']).read() == b'application'\n"
+        )
+    tools.write_file("check.py", script + f"print('pipeline checked')\nsys.exit({exit_status})\n")
+    execute = tools.run_with_server if managed else tools.run_command
+    result = execute("python check.py | tail -n 1", timeout_seconds=10)
+    assert result["returncode"] == exit_status
+    assert not result["timed_out"] and result["output"].strip() == "pipeline checked"
+    if managed:
+        with socket.socket() as connection:
+            connection.settimeout(1)
+            assert connection.connect_ex(("127.0.0.1", result["port"])) != 0
+
+
 def test_invalid_model_arguments_return_feedback_without_mutation(tmp_path: Path) -> None:
     tools = WorkspaceTools(tmp_path)
     tools.write_file("app.txt", "original")

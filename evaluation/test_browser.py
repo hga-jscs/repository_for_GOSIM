@@ -2,6 +2,7 @@
 
 import uuid
 
+import pytest
 from playwright.sync_api import expect
 
 
@@ -28,6 +29,7 @@ def register_account(page, application):
     return username, email
 
 
+@pytest.mark.requirements("REQ-1-1-1")
 def test_github_registration_controls(page, application):
     registration(page, application)
     for label in ["Username", "Email", "Password", "Confirm password"]:
@@ -37,6 +39,7 @@ def test_github_registration_controls(page, application):
     expect(page.get_by_role("button", name="Create account", exact=True)).to_be_enabled()
 
 
+@pytest.mark.requirements("REQ-1-1-1")
 def test_github_invalid_registration_preserves_safe_inputs(page, application):
     registration(page, application)
     for label, value in [
@@ -59,6 +62,7 @@ def test_github_invalid_registration_preserves_safe_inputs(page, application):
     expect(page.get_by_label("Password", exact=True)).to_have_value("")
 
 
+@pytest.mark.requirements("REQ-1-1-2", "REQ-1-1-1")
 def test_github_session_reload_and_browser_isolation(page, browser, application):
     username, email = register_account(page, application)
     page.get_by_label("Username or email", exact=True).fill(email)
@@ -74,6 +78,7 @@ def test_github_session_reload_and_browser_isolation(page, browser, application)
         expect(visitor.get_by_text(username, exact=True)).to_have_count(0)
 
 
+@pytest.mark.requirements("REQ-1-1-2", "REQ-1-1-1")
 def test_github_invalid_login_uses_same_error(page, application):
     _, email = register_account(page, application)
     for identity in [email, "missing-" + email]:
@@ -83,6 +88,7 @@ def test_github_invalid_login_uses_same_error(page, application):
         expect(page.get_by_text("Invalid credentials", exact=True).first).to_be_visible()
 
 
+@pytest.mark.requirements("REQ-1-1-1")
 def test_github_duplicate_username_keeps_input(page, application):
     username, email = register_account(page, application)
     page.get_by_role("link", name="Create an account", exact=True).click()
@@ -106,6 +112,7 @@ def create_workbook(page, application):
     expect(page.get_by_role("grid", name="Worksheet grid")).to_be_visible()
 
 
+@pytest.mark.requirements("REQ-1-2-1", "REQ-3-1-3")
 def test_sheet_blank_workbook_state_and_reload(page, application):
     create_workbook(page, application)
     for _ in range(2):
@@ -117,6 +124,7 @@ def test_sheet_blank_workbook_state_and_reload(page, application):
         page.reload()
 
 
+@pytest.mark.requirements("REQ-1-1-1", "REQ-1-2-1")
 def test_sheet_workbook_direct_url_in_new_browser(page, browser, application):
     create_workbook(page, application)
     with browser.new_context() as context:
@@ -126,6 +134,7 @@ def test_sheet_workbook_direct_url_in_new_browser(page, browser, application):
         expect(reopened.get_by_role("tab", name="Sheet1", exact=True)).to_have_attribute("aria-selected", "true")
 
 
+@pytest.mark.requirements("REQ-1-2-2", "REQ-1-1-1", "REQ-1-2-1")
 def test_sheet_rename_validation_and_persistence(page, application):
     create_workbook(page, application)
     page.get_by_role("button", name="Rename workbook", exact=True).click()

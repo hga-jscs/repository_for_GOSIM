@@ -20,7 +20,11 @@ The evaluator requires frontend/package.json with a build script and backend/pac
 start script. Preserve the React/Vite frontend and Express/SQLite backend. The backend must listen
 on 0.0.0.0 using process.env.PORT and serve frontend/dist, including SPA deep links. Use relative /api
 URLs. Do not bind the grading port during generation; use an unused port for smoke checks. Keep seed
-initialization idempotent and server data persistent across restarts. Run frontend build after UI edits.
+initialization idempotent and server data persistent across restarts. Track completed seed versions in
+the database; a missing row after initialization can mean a user deleted it. Do not recreate deleted
+objects or revoked grants, or reset edited values on restart. Verify this through normal backend
+startup with the same temporary database, covering every seed module invoked at boot.
+Run frontend build after UI edits.
 Do not run generic starter test commands when no tests exist. Install dependencies once per project;
 avoid reinstalling them in each batch unless package manifests change.
 Read existing code before modifying it. Reuse working components and preserve existing behavior.
@@ -34,6 +38,10 @@ smoke script exercising the real API and browser over new suites that mock the a
 Reuse existing checks and test helpers. Do not spend a stage recreating testing infrastructure.
 Commands are synchronous: child processes are cleaned up after each command. Start servers, exercise
 them with run_with_server: it starts backend npm start and supplies BASE_URL and PORT to your test.
+Unless ARC_DB_FILE or DATABASE_FILE is explicitly set in the calling environment, each invocation
+gives the backend and test a shared fresh temporary ARC_DB_FILE, removed after the server stops.
+Initialize required seeds on application startup; create this test's objects in its script instead of
+assuming earlier debug data exists. Explicit database paths are preserved for same-database restarts.
 Write a test script that connects to BASE_URL and exits; do not start its own server. Reuse this tool
 for browser/API smoke tests instead of managing background processes across separate commands.
 Never kill unrelated processes. On Windows, use Start-Process -WindowStyle Hidden if needed
@@ -72,8 +80,14 @@ def parse_arguments(raw: str) -> tuple[object, str | None]:
 
 
 def compact_messages(messages: list[dict], keep_rounds: int = 6, character_limit: int = 90000) -> list[dict]:
-    """Keep all actions; replace only old bulky observations, preserving call/result pairing."""
-    if sum(len(str(message.get("content", ""))) for message in messages) < character_limit:
+    """Bound older source and observations while retaining requirements and recent complete rounds."""
+    if keep_rounds < 1 or character_limit < 1:
+        raise ValueError("Context limits must be positive")
+
+    def size(value: object) -> int:
+        return len(json.dumps(value, ensure_ascii=False))
+
+    if size(messages) <= character_limit:
         return messages
     assistant_positions = [index for index, message in enumerate(messages) if message["role"] == "assistant"]
     if len(assistant_positions) <= keep_rounds:
@@ -81,16 +95,59 @@ def compact_messages(messages: list[dict], keep_rounds: int = 6, character_limit
     boundary = assistant_positions[-keep_rounds]
     result = []
     for index, message in enumerate(messages):
-        if message["role"] == "tool" and index < boundary and len(message.get("content", "")) > 500:
-            result.append(
-                message
-                | {
+        shortened = message
+        if index < boundary and message["role"] in {"assistant", "tool"}:
+            if len(message.get("content") or "") > 500:
+                shortened = shortened | {
                     "content": message["content"][:250]
-                    + "\n[Older output omitted. Read current files or rerun the check when needed.]"
+                    + "\n[Older content omitted. Read current files or rerun the check when needed.]"
                 }
+            if message.get("tool_calls"):
+                calls = []
+                for call in message["tool_calls"]:
+                    function = call.get("function", {})
+                    arguments = function.get("arguments", "")
+                    if len(arguments) > 500:
+                        parsed, _ = parse_arguments(arguments)
+                        summary = (
+                            {
+                                key: value
+                                if size(value) <= 250
+                                else str(value)[:100] + " [Older argument omitted; read current files.]"
+                                for key, value in parsed.items()
+                            }
+                            if isinstance(parsed, dict)
+                            else {"history": "Older arguments omitted; read current files."}
+                        )
+                        call = call | {"function": function | {"arguments": json.dumps(summary, ensure_ascii=False)}}
+                    calls.append(call)
+                shortened = shortened | {"tool_calls": calls}
+        result.append(shortened)
+    # Requirements and recent rounds can alone exceed the target. Never truncate those mid-call.
+    prefix = assistant_positions[0]
+    protected_size = size(result[:prefix] + result[boundary:])
+    if protected_size < character_limit:
+        omitted = []
+        notice = {"role": "user", "content": ""}
+        while size(result) + (size(notice) if omitted else 0) > character_limit and boundary > prefix:
+            next_round = next(
+                (index for index in range(prefix + 1, boundary) if result[index]["role"] == "assistant"),
+                boundary,
             )
-        else:
-            result.append(message)
+            for call in result[prefix].get("tool_calls", []):
+                function = call.get("function", {})
+                arguments, _ = parse_arguments(function.get("arguments", "{}"))
+                path = arguments.get("path", "") if isinstance(arguments, dict) else ""
+                omitted.append(f"{function.get('name', 'tool')} {path}".strip())
+            notice["content"] = (
+                "Earlier tool history omitted: "
+                + "; ".join(omitted)[-1200:]
+                + ". Read current files and ARCHITECTURE.md for their actual state; prior actions are not proof of correctness."
+            )
+            del result[prefix:next_round]
+            boundary -= next_round - prefix
+        if omitted:
+            result.insert(prefix, notice)
     return result
 
 
@@ -109,6 +166,7 @@ class CodingAgent:
         max_request_attempts: int = 5,
         request_time_limit: float = 180,
         retry_delay: float = 2,
+        retry_time_limit: float = 600,
     ):
         self.client = client
         self.model = model
@@ -119,35 +177,40 @@ class CodingAgent:
         self.deadline = deadline
         self.compact = compact
         self.reasoning_effort = reasoning_effort
-        if max_request_attempts < 1 or request_time_limit <= 0 or retry_delay < 0:
+        if max_request_attempts < 1 or min(request_time_limit, retry_time_limit) <= 0 or retry_delay < 0:
             raise ValueError("Request attempts and time limit must be positive; retry delay must be nonnegative")
         self.max_request_attempts = max_request_attempts
         self.request_time_limit = request_time_limit
+        self.retry_time_limit = retry_time_limit
         self.retry_delay = retry_delay
         self.requests_stopped = False
         self.token_accounting_complete = True
         self.usage = Usage()
+        self.conversations: dict[str, list[dict]] = {}
         log_directory.mkdir(parents=True, exist_ok=True)
 
     def request_completion(
         self, messages: list[dict], stage: str, step: int, usage: Usage, result: dict, started: float
     ) -> ChatCompletion | None:
-        deadline = min(time.monotonic() + self.request_time_limit, self.deadline or float("inf"))
+        deadline = min(time.monotonic() + self.retry_time_limit, self.deadline or float("inf"))
         request_messages = compact_messages(messages) if self.compact else messages
         for attempt in range(self.max_request_attempts):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                self.requests_stopped = attempt > 0
                 result.update(
-                    status="api_unavailable" if self.requests_stopped else "time_limit",
-                    summary="Model request deadline reached; existing files are preserved",
+                    status="time_limit"
+                    if self.deadline is not None and time.monotonic() >= self.deadline
+                    else "api_unavailable",
+                    summary="Model retry or stage deadline reached; existing files and conversation are preserved",
                 )
                 self.save_progress(stage, step, usage, messages, result, started)
                 return None
             usage.request_attempts += 1
             self.save_progress(stage, step, usage, messages, result, started)
             try:
-                return self.client.with_options(timeout=min(180, remaining), max_retries=0).chat.completions.create(
+                return self.client.with_options(
+                    timeout=min(self.request_time_limit, remaining), max_retries=0
+                ).chat.completions.create(
                     model=self.model,
                     messages=request_messages,
                     tools=TOOLS,
@@ -172,10 +235,14 @@ class CodingAgent:
                 }
                 result.setdefault("api_failures", []).append(failure)
                 if not retry:
-                    self.requests_stopped = True
+                    self.requests_stopped = not retryable
+                    stage_expired = self.deadline is not None and time.monotonic() >= self.deadline
                     result.update(
-                        status="api_unavailable" if retryable else "api_error",
-                        summary="Model requests stopped; existing files are preserved for local verification. "
+                        status="api_error" if not retryable else "time_limit" if stage_expired else "api_unavailable",
+                        summary=(
+                            "Model requests stopped" if not retryable else "Stage interrupted; a later stage may retry"
+                        )
+                        + "; existing files and conversation are preserved. "
                         + failure["message"],
                     )
                 self.save_progress(stage, step, usage, messages, result, started)
@@ -199,24 +266,51 @@ class CodingAgent:
         usage.output_tokens += response.usage.completion_tokens
         usage.cached_tokens += getattr(response.usage.prompt_tokens_details, "cached_tokens", 0) or 0
 
-    def run(self, task: str, stage: str) -> dict:
+    def execute_tools(self, calls: list, messages: list[dict], usage: Usage, result: dict) -> None:
+        for call in calls:
+            usage.tool_calls += 1
+            arguments, error = parse_arguments(call.function.arguments)
+            if self.deadline is not None and time.monotonic() >= self.deadline:
+                output = json.dumps({"error": "Stage deadline reached; tool was not executed", "executed": False})
+            elif error:
+                output = json.dumps({"error": error})
+            elif call.function.name == "finish":
+                if len(calls) == 1 and isinstance(arguments, dict) and isinstance(arguments.get("summary"), str):
+                    result.update(status="finished", summary=arguments["summary"])
+                    output = json.dumps({"status": "stage_finished"})
+                else:
+                    output = json.dumps({"error": "Call finish alone after reviewing all tool results"})
+            else:
+                output = self.tools.dispatch(call.function.name, arguments, deadline=self.deadline)
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+            if self.deadline is not None and time.monotonic() >= self.deadline:
+                result.update(status="time_limit", summary="Stage deadline reached; pending tools were not executed")
+
+    def run(self, task: str, stage: str, resume_from: str | None = None) -> dict:
         if self.requests_stopped:
             return {
                 "stage": stage,
-                "status": "api_unavailable",
-                "summary": "Model requests already stopped",
+                "status": "api_error",
+                "summary": "Model requests stopped after a non-retryable error",
                 "token_accounting_complete": self.token_accounting_complete,
             }
-        messages = [
-            {
-                "role": "system",
-                "content": Template(SYSTEM, undefined=StrictUndefined).render(
-                    workspace=str(self.tools.workspace),
-                    shell="PowerShell" if os.name == "nt" else "bash",
-                ),
-            },
-            {"role": "user", "content": task + "\n\nCurrent files:\n" + self.tools.index()},
-        ]
+        messages = (
+            list(self.conversations[resume_from])
+            if resume_from
+            else [
+                {
+                    "role": "system",
+                    "content": Template(SYSTEM, undefined=StrictUndefined).render(
+                        workspace=str(self.tools.workspace),
+                        shell="PowerShell" if os.name == "nt" else "bash",
+                    ),
+                },
+                {"role": "user", "content": task + "\n\nCurrent files:\n" + self.tools.index()},
+            ]
+        )
+        if resume_from:
+            messages.append({"role": "user", "content": task})
+        self.conversations[stage] = messages
         usage = Usage()
         started = time.monotonic()
         result = {"stage": stage, "status": "step_limit", "summary": "Stage did not finish"}
@@ -261,34 +355,18 @@ class CodingAgent:
                 message.model_dump(exclude_none=True, exclude={"parsed", "refusal", "annotations", "audio"})
             )
             calls = message.tool_calls or []
-            if not calls and message.content and usage.tool_calls:
-                result.update(status="finished", summary=message.content)
-                self.save_progress(stage, step, usage, messages, result, started)
-                break
             if not calls:
                 messages.append(
                     {"role": "user", "content": "Continue using tools; call finish when the stage is complete."}
                 )
-            for call in calls:
-                arguments, error = parse_arguments(call.function.arguments)
-                usage.tool_calls += 1
-                if error:
-                    output = json.dumps({"error": error})
-                elif call.function.name == "finish":
-                    if len(calls) == 1 and isinstance(arguments, dict) and isinstance(arguments.get("summary"), str):
-                        result.update(status="finished", summary=arguments["summary"])
-                        output = json.dumps({"status": "stage_finished"})
-                    else:
-                        output = json.dumps({"error": "Call finish alone after reviewing all tool results"})
-                else:
-                    output = self.tools.dispatch(call.function.name, arguments)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+            self.execute_tools(calls, messages, usage, result)
             usage.elapsed_seconds = round(time.monotonic() - started, 3)
             self.save_progress(stage, step, usage, messages, result, started)
             print(json.dumps({"stage": stage, "step": step + 1, "usage": asdict(usage)}), flush=True)
-            if result["status"] == "finished":
+            if result["status"] in {"finished", "time_limit"}:
                 break
         usage.elapsed_seconds = round(time.monotonic() - started, 3)
+        self.save_progress(stage, step, usage, messages, result, started)
         for key, value in asdict(usage).items():
             setattr(self.usage, key, getattr(self.usage, key) + value)
         return result | {"usage": asdict(usage)}

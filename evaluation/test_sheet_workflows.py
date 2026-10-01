@@ -3,6 +3,7 @@ import io
 import uuid
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import expect
 from test_browser import create_workbook
 
@@ -30,8 +31,17 @@ def import_csv(page, application, content):
 
 
 def select_range(page, start, end):
-    cell(page, start).click()
-    cell(page, end).click(modifiers=["Shift"])
+    first = cell(page, start)
+    last = cell(page, end)
+    first.scroll_into_view_if_needed()
+    last.scroll_into_view_if_needed()
+    first_box = first.bounding_box()
+    last_box = last.bounding_box()
+    assert first_box and last_box
+    page.mouse.move(first_box["x"] + first_box["width"] / 2, first_box["y"] + first_box["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last_box["x"] + last_box["width"] / 2, last_box["y"] + last_box["height"] / 2, steps=8)
+    page.mouse.up()
 
 
 def data_command(page, name):
@@ -48,6 +58,7 @@ def choose(page, label, option):
         page.get_by_role("option", name=option, exact=True).click()
 
 
+@pytest.mark.requirements("REQ-1-3-1", "REQ-1-3-2")
 def test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells(page, application):
     content = 'Name,Value,Note\r\n中文,12,"hello,world"\r\n"a""b",,"line1\nline2"\r\n'
     import_csv(page, application, content)
@@ -66,6 +77,7 @@ def test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells(page,
     expect(cell(page, "A3")).to_have_text('a"b')
 
 
+@pytest.mark.requirements("REQ-1-3-1")
 def test_sheet_full_invalid_csv_does_not_create_a_workbook(page, application):
     name = import_csv(page, application, 'Name,Value\n"unclosed,12')
     expect(page.get_by_text("Invalid CSV file format. Import failed.", exact=True).first).to_be_visible()
@@ -73,6 +85,7 @@ def test_sheet_full_invalid_csv_does_not_create_a_workbook(page, application):
     expect(page.get_by_role("link", name=name, exact=True)).to_have_count(0)
 
 
+@pytest.mark.requirements("REQ-2-1-1", "REQ-2-1-2", "REQ-1-2-1", "REQ-3-1-1")
 def test_sheet_full_worksheet_switch_keeps_data_and_selection(page, application):
     create_workbook(page, application)
     edit(page, "B2", "original")
@@ -83,6 +96,7 @@ def test_sheet_full_worksheet_switch_keeps_data_and_selection(page, application)
     expect(cell(page, "A1")).to_have_attribute("aria-selected", "true")
     expect(cell(page, "B2")).to_have_text("")
     page.get_by_role("tab", name="Sheet1", exact=True).click()
+    expect(page.get_by_role("tab", name="Sheet1", exact=True)).to_have_attribute("aria-selected", "true")
     expect(cell(page, "B2")).to_have_text("original")
     expect(cell(page, "B2")).to_have_attribute("aria-selected", "true")
     page.reload()
@@ -90,6 +104,7 @@ def test_sheet_full_worksheet_switch_keeps_data_and_selection(page, application)
     expect(cell(page, "B2")).to_have_attribute("aria-selected", "true")
 
 
+@pytest.mark.requirements("REQ-4-1-1", "REQ-4-2-1", "REQ-1-2-1", "REQ-3-1-1")
 def test_sheet_full_formula_chain_recalculates_and_persists(page, application):
     create_workbook(page, application)
     edit(page, "A1", "10")
@@ -106,6 +121,7 @@ def test_sheet_full_formula_chain_recalculates_and_persists(page, application):
     expect(page.get_by_label("Formula bar", exact=True)).to_have_value("=SUM(A1:A3)")
 
 
+@pytest.mark.requirements("REQ-4-2-2", "REQ-1-2-1", "REQ-3-1-1", "REQ-4-1-1")
 def test_sheet_full_formula_errors_can_be_corrected(page, application):
     create_workbook(page, application)
     edit(page, "A1", "=1/0")
@@ -119,6 +135,7 @@ def test_sheet_full_formula_errors_can_be_corrected(page, application):
     expect(cell(page, "B1")).to_have_text("#REF!")
 
 
+@pytest.mark.requirements("REQ-3-2-2", "REQ-1-2-1", "REQ-3-1-1")
 def test_sheet_full_undo_redo_and_new_branch(page, application):
     create_workbook(page, application)
     edit(page, "A1", "before")
@@ -133,10 +150,12 @@ def test_sheet_full_undo_redo_and_new_branch(page, application):
     expect(cell(page, "A1")).to_have_text("before")
     edit(page, "A1", "new branch")
     expect(page.get_by_role("button", name="Redo", exact=True)).to_be_disabled()
+    expect(cell(page, "A1")).to_have_text("new branch")
     page.reload()
     expect(cell(page, "A1")).to_have_text("new branch")
 
 
+@pytest.mark.requirements("REQ-5-1-1", "REQ-1-3-1", "REQ-3-1-3")
 def test_sheet_full_stable_sort_moves_whole_rows(page, application):
     import_csv(page, application, "Name,Amount\nfirst,2\nsecond,1\nthird,2\n")
     expect(cell(page, "A4")).to_have_text("third")
@@ -154,6 +173,7 @@ def test_sheet_full_stable_sort_moves_whole_rows(page, application):
     expect(cell(page, "A2")).to_have_text("second")
 
 
+@pytest.mark.requirements("REQ-5-2-1", "REQ-1-2-1", "REQ-3-1-1", "REQ-3-1-3")
 def test_sheet_full_number_validation_persists(page, application):
     create_workbook(page, application)
     edit(page, "B3", "50")

@@ -1,0 +1,850 @@
+{
+  "schema_version": 1,
+  "experiment_date": "2026-10-01",
+  "scope": "Local public-requirement checks and Agent regression experiments; not the official competition evaluator.",
+  "official_score": null,
+  "official_pass_rate": null,
+  "official_gateway_tested": false,
+  "model_service": {
+    "provider": "DeepSeek official API",
+    "model": "deepseek-flash"
+  },
+  "submission_archive_contains_this_record": false,
+  "versions": {
+    "fresh_generation": {
+      "archive_sha256": "4be8740c0943a59cb4467a0eb62b23f81bdd558ca86341c4d2ef169e876a7fc8",
+      "role": "Fixed snapshot used for the full Sheet and GitHub generation experiments."
+    },
+    "independent_validation": {
+      "archive_sha256": "6b4560ed151f39e15d3ddf2e46a396444efdca9c67c66609f2a9f4d5ff67022d",
+      "role": "Frozen public workflow suite used for both Sheet baseline and generated-application review.",
+      "changed_from_fresh_generation": [
+        "evaluation/test_browser.py",
+        "evaluation/test_github_workflows.py",
+        "evaluation/test_sheet_requirements.py",
+        "evaluation/test_sheet_workflows.py",
+        "main.py",
+        "tools.py"
+      ],
+      "changes": "Visible-state waits, mouse drag selection, new-repository default branch, line endings, batch continuation/repair allocation and Linux pipefail. Generator changes did not enter the ongoing fresh-generation runs."
+    },
+    "database_isolation_candidate": {
+      "archive_sha256": "6dbb8c869ef7ea59d7e4b8f85026ccab48b30cf8c4f5244a3bd487dfb87f489e",
+      "role": "Candidate used for the real Counter experiment and the recorded 91-case Agent regression collection.",
+      "changes": "Default temporary database isolation, absolute evaluation paths, and accompanying instructions; evaluation semantics retained.",
+      "complete_sheet_or_github_generation_performed": false
+    },
+    "reproduction_command_candidate": {
+      "archive_sha256": "df8f0d9960e3a61fef34e58e44783b00ea6a4440bc2fa8bd17e382c8824adcb3",
+      "changed_from_previous": [
+        "main.py",
+        "verification.py"
+      ],
+      "changes": "Complete executable reproduction command in repair feedback. Business assertions, budgets and runtime API contract unchanged.",
+      "complete_sheet_or_github_generation_performed": false
+    },
+    "selector_fix_candidate": {
+      "archive_sha256": "a6dae2e3542ce3cc36cc6f792257c3137b9882228a8aa4e7c1a8d6ceed258d14",
+      "changed_from_previous": [
+        "evaluation/test_github_requirements.py"
+      ],
+      "changes": "Escape literal slash in a Playwright role-selector regex. Previous selector raises InvalidSelectorError independently of product behavior. Business expectation unchanged.",
+      "is_current_local_candidate": false,
+      "complete_sheet_or_github_generation_performed": false,
+      "github_final_independent_validation_status": "superseded_by_commit_wait_candidate"
+    },
+    "commit_wait_candidate": {
+      "archive_sha256": "d971420be5d1829aaf33a208ecb7ab8227a978e01fd2f2ed899a364dbf5f7d1e",
+      "changed_from_previous": [
+        "evaluation/test_github_requirements.py"
+      ],
+      "changes": "Add two visible completion waits after valid file submission: the create-file helper and the file-validation case wait until Commit changes is hidden before existing content and reload assertions. Original business assertions retained.",
+      "is_current_local_candidate": false,
+      "complete_sheet_or_github_generation_performed": false,
+      "github_core_independent_validation_status": "passed_17_of_17_on_final_application_generated_by_fresh_generation_snapshot"
+    },
+    "expanded_workflow_candidate": {
+      "archive_sha256": "1c31c05a5432944d21d1cff58de2e61947ab523158f75e8687bbac199a9b4a66",
+      "file_count": 58,
+      "changes": "Integrate eight public GitHub checks and managed multi-user browser contexts, plus seed idempotence guidance; 25 GitHub and 47 Sheet cases.",
+      "complete_sheet_or_github_generation_performed": false,
+      "is_current_local_candidate": false
+    },
+    "submission_validation_candidate": {
+      "archive_sha256": "df22d6c7f6d3c3169d8f76385840a35cf5ab957e16bc1e2295665dca3b704785",
+      "file_count": 58,
+      "changes": "Only scope the new-grant Role control to its own form and wait for the Account menu after sign-in in the permissions tests. Existing business assertions retained.",
+      "complete_sheet_or_github_generation_performed": false,
+      "is_current_local_candidate": false
+    },
+    "seed_version_candidate": {
+      "archive_sha256": "13d8b9748a63130e06b1a62b16872ef515d4b711ec8ab0df716657b9de9bd9a3",
+      "file_count": 58,
+      "changes": "Only extend generation instructions to use seed version markers and preserve deleted objects and revoked grants. Evaluation files identical to submission_validation_candidate.",
+      "complete_sheet_or_github_generation_performed": false,
+      "is_current_local_candidate": false
+    },
+    "full_bootstrap_candidate": {
+      "archive_sha256": "d5b0e03b1e13373345a2a1ddf1082a7eea55170b3db2ae67af7a71e4b494daec",
+      "file_count": 58,
+      "changes": "Only extend generation instructions to verify the full application startup sequence. Evaluation files identical to submission_validation_candidate.",
+      "complete_sheet_or_github_generation_performed": false,
+      "is_current_local_candidate": false,
+      "actual_model_use": "Fourth targeted continuation on an existing GitHub application; independent 25-case workflow and full-bootstrap/seed/UI-restart checks passed."
+    },
+    "final_repair_effort_candidate": {
+      "archive_sha256": "540a71c35be2f21be481cc9344fe73be0b723a844e6292dc49c653449c86d5e5",
+      "file_count": 58,
+      "changed_from_previous": [
+        "main.py"
+      ],
+      "changes": "When failed final checks enter the final repair phase, promote low reasoning effort to high while preserving high/max. Initial and batch phases retain the CLI effort. Total repair budget and its 75/25 allocation are unchanged. Summary records final_repair_reasoning_effort, null when final repair was not entered.",
+      "evaluation_byte_identical_to": "submission_validation_candidate",
+      "is_current_local_candidate": true,
+      "complete_sheet_or_github_generation_performed": false,
+      "real_model_evidence_scope": "High-effort targeted continuation was actually used in repair rounds 3 and 4 with earlier runtime snapshots. This candidate default scheduling was not rerun from an empty template.",
+      "causal_limit": "Application state and diagnostic feedback changed between rounds; the evidence is not a pure causal comparison of reasoning effort."
+    }
+  },
+  "sheet": {
+    "status": "completed",
+    "requirements": {
+      "atomic_count": 24,
+      "official_scenario_descriptions": 100,
+      "sha256": "9cddf67be50748106289ed158648629a6c50c30a490d0eda5bd570c557440b96"
+    },
+    "generation": {
+      "version": "fresh_generation",
+      "from_empty_template": true,
+      "returncode": 0,
+      "implementation_batches_attempted": 12,
+      "integration_finished": true,
+      "delivery_ready": true,
+      "public_workflow_passed": true,
+      "all_batches_finished": false,
+      "all_batches_finished_explanation": "Historical stage aggregate: earlier time_limit/step_limit or failed stage checks remain recorded after later repairs. All 12 implementation batches were attempted; both final internal and independent public checks passed 47 cases.",
+      "retained_incomplete_batch_states": [
+        {
+          "stage": "batch-03-repair",
+          "status": "time_limit",
+          "independent_checks_passed": false
+        },
+        {
+          "stage": "batch-04-continuation",
+          "status": "time_limit",
+          "independent_checks_passed": true
+        },
+        {
+          "stage": "batch-06-repair",
+          "status": "time_limit",
+          "independent_checks_passed": false
+        },
+        {
+          "stage": "batch-07-repair",
+          "status": "time_limit",
+          "independent_checks_passed": false
+        },
+        {
+          "stage": "batch-08-continuation",
+          "status": "step_limit",
+          "independent_checks_passed": true
+        },
+        {
+          "stage": "batch-10-continuation",
+          "status": "step_limit",
+          "independent_checks_passed": true
+        },
+        {
+          "stage": "batch-11-repair",
+          "status": "time_limit",
+          "independent_checks_passed": false
+        }
+      ],
+      "usage": {
+        "input_tokens": 29958642,
+        "output_tokens": 776024,
+        "cached_tokens": 14136960,
+        "calls": 1185,
+        "tool_calls": 1572,
+        "request_attempts": 1190,
+        "failed_requests": 5,
+        "missing_usage_calls": 0
+      },
+      "observed_total_tokens": 30734666,
+      "token_accounting_complete": false,
+      "total_tokens_interpretation": "lower_bound",
+      "failed_request_token_usage": "unknown",
+      "eligible_for_complete_token_ranking": false,
+      "cached_tokens_included_in_input_tokens": true,
+      "timing_seconds": {
+        "outer_process": 6918.239,
+        "summary_elapsed": 6915.831
+      },
+      "cost_actual": null
+    },
+    "independent_validation": {
+      "version": "independent_validation",
+      "environment": "WSL Linux / Chromium",
+      "fresh_database": true,
+      "real_browser": true,
+      "application_api_mocked": false,
+      "baseline": {
+        "passed": 10,
+        "failed": 37,
+        "errors": 0,
+        "other_target_skipped": 17
+      },
+      "generated_application": {
+        "passed": 47,
+        "failed": 0,
+        "errors": 0,
+        "other_target_skipped": 17
+      },
+      "comparison": {
+        "improved": 37,
+        "regressed": 0,
+        "unchanged_passed": 10,
+        "identical_test_names": true,
+        "identical_test_file_sha256": true
+      },
+      "test_suite_sha256": {
+        "conftest.py": "f7f08972e8143854b2e2d8c66533474149c8412168ae20294aaed34af4e0c63d",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_requirements.py": "22ebbf97f3ba71dff4edbbcaf1694c539a6c2bc71fd85cc7bc84275d4ad2309a",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "baseline_pytest_process": 425.712,
+        "generated_pytest_process": 92.616,
+        "generated_pytest_console": 91.91,
+        "generated_install_build_test_steps_total": 124.194
+      },
+      "official_score": null,
+      "byte_identity_compared_files": [
+        "conftest.py",
+        "test_browser.py",
+        "test_sheet_requirements.py",
+        "test_sheet_workflows.py"
+      ],
+      "rerun_after_github_only_test_fixes": false,
+      "byte_identity_scope": "The recorded four-file comparison was 6b4560 against d971420. Later migration extended conftest with GitHub sessions; Sheet test bodies did not change and the expanded suite was actually rerun.",
+      "commit_wait_candidate_sheet_test_files_byte_identical": true
+    },
+    "restart_check": {
+      "runs": 1,
+      "status": "passed",
+      "application": "independent validation copy",
+      "explicit_temporary_database": true,
+      "same_database_across_two_backend_starts": true,
+      "new_browser_after_restart": true,
+      "new_workbook_persisted": true,
+      "unique_A1_value_persisted": true,
+      "sqlite_table_count_before": {
+        "app_meta": 1,
+        "cells": 17,
+        "filters": 3,
+        "pivots": 0,
+        "sqlite_sequence": 4,
+        "validations": 0,
+        "workbooks": 2,
+        "worksheets": 3
+      },
+      "sqlite_table_count_after_start_before_browser": {
+        "app_meta": 1,
+        "cells": 17,
+        "filters": 3,
+        "pivots": 0,
+        "sqlite_sequence": 4,
+        "validations": 0,
+        "workbooks": 2,
+        "worksheets": 3
+      },
+      "table_count_changes": {},
+      "table_count_comparison_is_observational": true,
+      "limitations": "Unchanged table counts support no duplicate-row insertion in this restart; they do not establish all seed contents are idempotent.",
+      "application_files_unchanged": true,
+      "default_database_file_unchanged": true,
+      "temporary_database_removed": true,
+      "model_api_calls": 0
+    },
+    "expanded_suite_validation": {
+      "status": "completed",
+      "version": "expanded_workflow_candidate",
+      "passed": 47,
+      "failed": 0,
+      "errors": 0,
+      "other_target_skipped": 25,
+      "test_suite_sha256": {
+        "conftest.py": "3fe2c939b2567706a73c283403128d5153ddf9f3ae77c51239ed6a870556a121",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_boundaries.py": "a32d7da56f6be85bf2ba83626e95c2d3ec1d62c8e145aaa7496789c8cb58c928",
+        "test_github_permissions.py": "dd37086aa8dca3420acd51a04c8c06c4eacfcfe724553ebb3749b3dec17f4383",
+        "test_github_requirements.py": "58d4615fb226b1ccb74b6f72274afc11a27e7a229a8a8d4266b8e44c738bc1c3",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "pytest_process": 107.141,
+        "pytest_console": 106.39
+      },
+      "later_candidate_changes": "df22d6 changes only a GitHub permissions test; 13d8b9 and d5b0e0 change only generation instructions. Sheet application was not regenerated.",
+      "official_score": null
+    }
+  },
+  "github": {
+    "status": "completed",
+    "generation_version": "fresh_generation",
+    "from_empty_template": true,
+    "requirements": {
+      "atomic_count": 47,
+      "official_scenario_descriptions": 100,
+      "sha256": "bdc17d23265a6b1948aec150e69d0b2accfa37db4c569305c97be7ff7f3b0b8f"
+    },
+    "generation": {
+      "version": "fresh_generation",
+      "from_empty_template": true,
+      "returncode": 0,
+      "implementation_batches_attempted": 12,
+      "delivery_ready": true,
+      "public_workflow_passed": false,
+      "all_batches_finished": false,
+      "all_batches_finished_explanation": "Historical time_limit/step_limit and stage-check failures remain recorded; all 12 implementation batches were attempted.",
+      "final_internal_public_check": {
+        "returncode": 124,
+        "timed_out": true,
+        "seconds": 5.086,
+        "complete_result_available": false,
+        "reason": "Global deadline left insufficient time to finish the final public workflow check."
+      },
+      "usage": {
+        "input_tokens": 47305460,
+        "output_tokens": 1113521,
+        "cached_tokens": 28035456,
+        "calls": 1486,
+        "tool_calls": 1867,
+        "request_attempts": 1490,
+        "failed_requests": 4,
+        "missing_usage_calls": 0
+      },
+      "observed_total_tokens": 48418981,
+      "token_accounting_complete": false,
+      "total_tokens_interpretation": "lower_bound",
+      "failed_request_token_usage": "unknown",
+      "eligible_for_complete_token_ranking": false,
+      "cached_tokens_included_in_input_tokens": true,
+      "timing_seconds": {
+        "outer_process": 8594.503,
+        "summary_elapsed": 8592.622
+      },
+      "cost_actual": null
+    },
+    "expected_local_cases": 25,
+    "historical_reviews_of_same_final_application": [
+      {
+        "version": "independent_validation",
+        "passed": 15,
+        "failed": 2,
+        "errors": 0,
+        "other_target_skipped": 47,
+        "pytest_process_seconds": 49.36,
+        "test_defects": [
+          "Unescaped slash in Playwright role-selector regex raises InvalidSelectorError",
+          "Reload could precede completion of valid file submission"
+        ]
+      },
+      {
+        "version": "selector_fix_candidate",
+        "passed": 16,
+        "failed": 1,
+        "errors": 0,
+        "other_target_skipped": 47,
+        "pytest_process_seconds": 49.836,
+        "test_defects": [
+          "Reload could precede completion of valid file submission"
+        ]
+      }
+    ],
+    "comparison_interpretation": "Old 15/17 to 16/17 to 17/17 was test correction, not product improvement. The expanded comparison uses identical df22d6-compatible evaluation files and 25 case names: original complete-generation application 17/25 versus both third and fourth continued-repair applications 25/25, eight improved and none regressed. A separate full-bootstrap failure after the third repair was fixed by the fourth repair and independently rechecked.",
+    "restart_check": {
+      "status": "passed",
+      "application_stage": "Fourth authorization repair",
+      "version": "full_bootstrap_candidate",
+      "full_bootstrap_passed": true,
+      "standalone_seed_passed": true,
+      "ui_account_repository_restart_passed": true,
+      "bootstrap_checks": {
+        "personal_bob_downgrade_preserved": true,
+        "personal_carol_revocation_preserved": true,
+        "docs_dave_downgrade_preserved": true,
+        "docs_tina_revocation_preserved": true,
+        "bob_organization_membership_removal_preserved": true,
+        "no_duplicate_grants": true,
+        "all_permission_rows_unchanged_after_restart": true,
+        "all_organization_member_rows_unchanged_after_restart": true
+      },
+      "standalone_seed_checks": {
+        "initial_expected_roles": true,
+        "second_seed_keeps_one_grant_per_subject": true,
+        "second_seed_all_grants_unchanged": true,
+        "third_seed_keeps_bob_read_and_carol_revoked": true,
+        "third_seed_all_grants_unchanged": true
+      },
+      "docs_tina_revoked_grants_after_restart": 0,
+      "timing_seconds": {
+        "full_bootstrap": 15.925,
+        "standalone_seed_replay": 8.837,
+        "ui_restart": 11.63
+      },
+      "application_file_count": 162,
+      "protected_file_count": 28,
+      "application_files_unchanged": true,
+      "protected_files_unchanged": true,
+      "cleanup": {
+        "bootstrap_temporary_database_removed": true,
+        "bootstrap_ports_closed": true,
+        "ui_temporary_database_removed": true,
+        "seed_database_retained_for_evidence": true
+      },
+      "model_api_calls": 0,
+      "scope": "Permission/member changes for bootstrap checks were prepared at the SQLite level, then checked across an actual full backend restart. The separate real-browser check creates an account and private repository and verifies persistence across restart. Neither replaces the official evaluator."
+    },
+    "official_score": null,
+    "official_pass_rate": null,
+    "core_validation_before_continuation": {
+      "status": "completed",
+      "passed": 17,
+      "failed": 0,
+      "errors": 0,
+      "other_target_skipped": 47,
+      "environment": "WSL Linux / Chromium",
+      "fresh_database": true,
+      "real_browser": true,
+      "application_api_mocked": false,
+      "test_suite_sha256": {
+        "conftest.py": "f7f08972e8143854b2e2d8c66533474149c8412168ae20294aaed34af4e0c63d",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_requirements.py": "58d4615fb226b1ccb74b6f72274afc11a27e7a229a8a8d4266b8e44c738bc1c3",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "pytest_process": 40.348,
+        "pytest_console": 39.22,
+        "install_build_test_steps_total": 101.929
+      },
+      "independent_of_generation_deadline": true,
+      "official_score": null,
+      "version": "commit_wait_candidate"
+    },
+    "historical_external_supplementary_checks": {
+      "status": "completed",
+      "passed": 0,
+      "failed": 8,
+      "errors": 0,
+      "independent_of_repository_25_case_suite": true,
+      "pytest_process_seconds": 112.346,
+      "pytest_console_seconds": 111.8,
+      "scope": "External eight-case suite on the original complete-generation application. Five cases stopped at a missing public-contract row role before downstream permission checks. Additional preparation defects were found only after that common blocker was fixed. Retained as historical evidence, not used as the final comparable baseline."
+    },
+    "expanded_comparable_baseline": {
+      "status": "completed",
+      "version": "submission_validation_candidate",
+      "application_stage": "Original 4be874 complete-generation application before targeted continuation",
+      "passed": 17,
+      "failed": 8,
+      "errors": 0,
+      "other_target_skipped": 47,
+      "test_suite_sha256": {
+        "conftest.py": "3fe2c939b2567706a73c283403128d5153ddf9f3ae77c51239ed6a870556a121",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_boundaries.py": "a32d7da56f6be85bf2ba83626e95c2d3ec1d62c8e145aaa7496789c8cb58c928",
+        "test_github_permissions.py": "171bff776571dcee3255af0c417e293faa8ffd90b06c15b85232b872d269d0ca",
+        "test_github_requirements.py": "58d4615fb226b1ccb74b6f72274afc11a27e7a229a8a8d4266b8e44c738bc1c3",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "pytest_process": 138.75,
+        "pytest_console": 138.01
+      }
+    },
+    "continuation_repairs": [
+      {
+        "round": 1,
+        "version": "expanded_workflow_candidate",
+        "model": "deepseek-flash",
+        "reasoning_effort": "low",
+        "from_empty_template": false,
+        "status": "step_limit",
+        "returncode": 1,
+        "error": null,
+        "protected_inputs_changed": [],
+        "usage": {
+          "input_tokens": 4357378,
+          "output_tokens": 43736,
+          "cached_tokens": 3750656,
+          "calls": 60,
+          "tool_calls": 79,
+          "request_attempts": 60,
+          "failed_requests": 0,
+          "missing_usage_calls": 0
+        },
+        "total_tokens": 4401114,
+        "token_accounting_complete": true,
+        "cached_tokens_included_in_input_tokens": true,
+        "timing_seconds": {
+          "outer_process": 441.937,
+          "model_stage": 427.093
+        },
+        "independent_validation": {
+          "passed": 23,
+          "failed": 2,
+          "errors": 0,
+          "other_target_skipped": 47,
+          "pytest_process_seconds": 92.335,
+          "pytest_console_seconds": 91.71
+        },
+        "official_score": null
+      },
+      {
+        "round": 2,
+        "version": "seed_version_candidate",
+        "model": "deepseek-flash",
+        "reasoning_effort": "low",
+        "from_empty_template": false,
+        "status": "step_limit",
+        "returncode": 1,
+        "error": null,
+        "protected_inputs_changed": [],
+        "usage": {
+          "input_tokens": 2787673,
+          "output_tokens": 21828,
+          "cached_tokens": 2390784,
+          "calls": 60,
+          "tool_calls": 75,
+          "request_attempts": 60,
+          "failed_requests": 0,
+          "missing_usage_calls": 0
+        },
+        "total_tokens": 2809501,
+        "token_accounting_complete": true,
+        "cached_tokens_included_in_input_tokens": true,
+        "timing_seconds": {
+          "outer_process": 231.62,
+          "model_stage": 220.053
+        },
+        "independent_validation": {
+          "passed": 23,
+          "failed": 2,
+          "errors": 0,
+          "other_target_skipped": 47,
+          "pytest_process_seconds": 94.501,
+          "pytest_console_seconds": 93.68
+        },
+        "official_score": null
+      },
+      {
+        "round": 3,
+        "version": "seed_version_candidate",
+        "model": "deepseek-flash",
+        "reasoning_effort": "high",
+        "from_empty_template": false,
+        "status": "finished",
+        "returncode": 0,
+        "error": null,
+        "protected_inputs_changed": [],
+        "usage": {
+          "input_tokens": 3785711,
+          "output_tokens": 31119,
+          "cached_tokens": 3318272,
+          "calls": 55,
+          "tool_calls": 68,
+          "request_attempts": 55,
+          "failed_requests": 0,
+          "missing_usage_calls": 0
+        },
+        "total_tokens": 3816830,
+        "token_accounting_complete": true,
+        "cached_tokens_included_in_input_tokens": true,
+        "timing_seconds": {
+          "outer_process": 314.096,
+          "model_stage": 303.952
+        },
+        "independent_validation": {
+          "passed": 25,
+          "failed": 0,
+          "errors": 0,
+          "other_target_skipped": 47,
+          "pytest_process_seconds": 77.687,
+          "pytest_console_seconds": 77.07
+        },
+        "official_score": null
+      },
+      {
+        "round": 4,
+        "version": "full_bootstrap_candidate",
+        "model": "deepseek-flash",
+        "reasoning_effort": "high",
+        "from_empty_template": false,
+        "status": "step_limit",
+        "returncode": 1,
+        "error": null,
+        "protected_inputs_changed": [],
+        "usage": {
+          "input_tokens": 1967849,
+          "output_tokens": 21493,
+          "cached_tokens": 1743488,
+          "calls": 45,
+          "tool_calls": 52,
+          "request_attempts": 45,
+          "failed_requests": 0,
+          "missing_usage_calls": 0
+        },
+        "total_tokens": 1989342,
+        "token_accounting_complete": true,
+        "cached_tokens_included_in_input_tokens": true,
+        "timing_seconds": {
+          "outer_process": 228.144,
+          "model_stage": 213.191
+        },
+        "independent_validation": {
+          "passed": 25,
+          "failed": 0,
+          "errors": 0,
+          "other_target_skipped": 47,
+          "pytest_process_seconds": 73.611,
+          "pytest_console_seconds": 73.0
+        },
+        "scope": "Fix full-bootstrap reseeding that recreated a revoked docs/tina grant. Stage reached its step limit; subsequent independent application and startup checks all passed.",
+        "official_score": null
+      }
+    ],
+    "continuation_accounting": {
+      "completed_rounds": 4,
+      "completed_round_total_tokens": 13016787,
+      "completed_round_token_accounting_complete": true,
+      "successful_calls": 220,
+      "failed_requests": 0,
+      "outer_process_seconds_total": 1215.797,
+      "original_generation_plus_completed_rounds_observed_total_tokens": 61435768,
+      "combined_total_interpretation": "lower_bound because original generation includes failed requests with unknown usage",
+      "cost_actual": null
+    },
+    "diagnostics_after_third_repair": {
+      "default_seed_check": "passed",
+      "ui_account_repository_restart_check": "passed",
+      "full_bootstrap_revoked_grant_preservation": "failed",
+      "remaining_issue": "Full application bootstrap still recreates the revoked docs/tina grant through issue seeding. Passing the default seed script and UI persistence check does not cover this startup path."
+    },
+    "third_repair_independent_validation": {
+      "status": "completed",
+      "version": "seed_version_candidate",
+      "application_stage": "Third concentrated repair, continuing an existing application",
+      "passed": 25,
+      "failed": 0,
+      "errors": 0,
+      "other_target_skipped": 47,
+      "test_suite_sha256": {
+        "conftest.py": "3fe2c939b2567706a73c283403128d5153ddf9f3ae77c51239ed6a870556a121",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_boundaries.py": "a32d7da56f6be85bf2ba83626e95c2d3ec1d62c8e145aaa7496789c8cb58c928",
+        "test_github_permissions.py": "171bff776571dcee3255af0c417e293faa8ffd90b06c15b85232b872d269d0ca",
+        "test_github_requirements.py": "58d4615fb226b1ccb74b6f72274afc11a27e7a229a8a8d4266b8e44c738bc1c3",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "pytest_process": 77.687,
+        "pytest_console": 77.07
+      },
+      "comparison_to_expanded_baseline": {
+        "improved": 8,
+        "regressed": 0,
+        "unchanged_passed": 17,
+        "identical_case_names": true,
+        "identical_test_file_sha256": true
+      },
+      "official_score": null
+    },
+    "latest_completed_independent_validation": {
+      "status": "completed",
+      "version": "full_bootstrap_candidate",
+      "application_stage": "Fourth authorization repair, continuing an existing application",
+      "passed": 25,
+      "failed": 0,
+      "errors": 0,
+      "other_target_skipped": 47,
+      "test_suite_sha256": {
+        "conftest.py": "3fe2c939b2567706a73c283403128d5153ddf9f3ae77c51239ed6a870556a121",
+        "test_browser.py": "b4bce40d6218a3a1ff0ce042b452436d028e7bf21e053b13657ae9d32bb6aafb",
+        "test_github_boundaries.py": "a32d7da56f6be85bf2ba83626e95c2d3ec1d62c8e145aaa7496789c8cb58c928",
+        "test_github_permissions.py": "171bff776571dcee3255af0c417e293faa8ffd90b06c15b85232b872d269d0ca",
+        "test_github_requirements.py": "58d4615fb226b1ccb74b6f72274afc11a27e7a229a8a8d4266b8e44c738bc1c3",
+        "test_github_workflows.py": "68aa221b3fc88fab73f1e65d96f0141bd145e8deddb53a545f3f957a05b08d11",
+        "test_sheet_requirements.py": "fe2650849a58ac11fcea68acb4e34bb9bd59454284a73106e8adeabc8f05a13d",
+        "test_sheet_workflows.py": "690919e7f7bca6e70e8bf08aed9b6a30f9d611c689eb77681adc36c560d3d80a"
+      },
+      "timing_seconds": {
+        "pytest_process": 73.611,
+        "pytest_console": 73.0
+      },
+      "comparison_to_expanded_baseline": {
+        "improved": 8,
+        "regressed": 0,
+        "unchanged_passed": 17,
+        "identical_case_names": true,
+        "identical_test_file_sha256": true
+      },
+      "official_score": null
+    }
+  },
+  "counter_candidate_experiment": {
+    "status": "completed",
+    "version": "database_isolation_candidate",
+    "atomic_requirements": 1,
+    "real_model_generation_runs": 1,
+    "returncode": 0,
+    "usage": {
+      "input_tokens": 414053,
+      "output_tokens": 12690,
+      "cached_tokens": 377472,
+      "calls": 24,
+      "tool_calls": 33,
+      "request_attempts": 24,
+      "failed_requests": 0,
+      "missing_usage_calls": 0
+    },
+    "total_tokens": 426743,
+    "token_accounting_complete": true,
+    "cached_tokens_included_in_input_tokens": true,
+    "generation_timing_seconds": {
+      "outer_process": 210.104,
+      "summary_elapsed": 208.477,
+      "model_stage": 192.765
+    },
+    "independent_validation": {
+      "passed": 4,
+      "failed": 0,
+      "real_http_and_chromium": true,
+      "cases": [
+        "Fresh default database first start",
+        "Fresh default database second start",
+        "Explicit database first start",
+        "Explicit database restart"
+      ],
+      "ports_closed": true,
+      "temporary_databases_cleaned": true,
+      "four_preserved_files_unchanged": true,
+      "elapsed_seconds": null,
+      "elapsed_seconds_note": "No monotonic duration recorded for the independent validation; not inferred from wall-clock timestamps."
+    },
+    "official_score": null,
+    "cost_actual": null,
+    "limitation": "Single Counter requirement and database lifecycle validation; not a full Sheet or GitHub generation result."
+  },
+  "agent_regressions": {
+    "full_suite_recorded": {
+      "version": "database_isolation_candidate",
+      "collected_per_platform": 91,
+      "windows": {
+        "passed": 87,
+        "skipped": 4,
+        "failed": 0,
+        "errors": 0,
+        "junit_seconds": 80.759,
+        "junit_artifact": {
+          "name": "Windows完整回归.xml",
+          "sha256": "ca6b555e697f86714ee3b7c4493157a79c369d2a30cab6908264d438cc13cfa6"
+        }
+      },
+      "linux": {
+        "passed": 90,
+        "skipped": 1,
+        "failed": 0,
+        "errors": 0,
+        "junit_seconds": 38.619,
+        "junit_artifact": {
+          "name": "Linux完整回归.xml",
+          "sha256": "bbea061cee2b7f7424bfd2d092d4fd5f58377a4457b6d6efd3b1ce81a37e0909"
+        }
+      }
+    },
+    "incremental_reproduction_command_checks": {
+      "version": "reproduction_command_candidate",
+      "new_test_count": 1,
+      "new_test": "tests/competition/test_scheduling.py::test_public_check_reproduction_command_collects_tests_from_workspace_with_spaces",
+      "scope": "Relevant scheduling regression checks including real CLI collection from an application path containing spaces.",
+      "windows": {
+        "passed": 11,
+        "failed": 0
+      },
+      "linux": {
+        "passed": 11,
+        "failed": 0
+      },
+      "current_92_case_full_suite_rerun": false
+    },
+    "scope": "Agent runtime/tooling checks, not application business or competition scores.",
+    "latest_submission_entrypoint_checks": {
+      "version": "final_repair_effort_candidate",
+      "scope": "Two selected submission/entrypoint regressions on each platform, not the complete Agent regression suite or a model-generation run.",
+      "tests": [
+        "test_extracted_archive_starts_with_runner_files_before_model_connection",
+        "test_archive_is_deterministic_and_entrypoint_accepts_official_arguments"
+      ],
+      "full_suite_rerun": false,
+      "windows": {
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 10.098,
+        "console_seconds": 10.13,
+        "junit_artifact": {
+          "name": "Windows发布入口.xml",
+          "sha256": "43eab4216b0d73f43ba97152b196be7edb3059c180aba99e21eb17647b94db3f"
+        }
+      },
+      "linux": {
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 4.907,
+        "console_seconds": 4.91,
+        "junit_artifact": {
+          "name": "Linux发布入口.xml",
+          "sha256": "ac42e7498eecc686b231045aab19aa866cf4db36039a0bbbfbe63663c02cf3f3"
+        }
+      },
+      "clock_note": "The Windows and WSL wall clocks were offset; absolute JUnit timestamps are not used to order cross-platform runs. Both entrypoint records were verified against the current candidate. Duration fields retain their recorded measurement scope."
+    }
+  },
+  "interpretation_limits": [
+    "Both original full application generations used the fixed fresh_generation snapshot. GitHub then underwent four targeted continuations on existing applications. Latest candidate changes final repair effort scheduling; neither full task was regenerated from an empty template with that latest scheduling.",
+    "Local tests are not equivalent to the official 100 scenarios per task and do not imply an official score of 100.",
+    "Missing usage from failed requests makes the Sheet token total a lower bound; actual charges were not read.",
+    "Earlier 9/9 and 11/11 development results use older tests and retained applications; they are not current fixed-version success rates.",
+    "Final GitHub application passed 25 local workflow checks and separate full-bootstrap, standalone-seed and UI-restart checks. High-effort continuation was tested with real API calls, but its changing feedback and application state prevent a pure causal claim about reasoning effort."
+  ],
+  "updated_date": "2026-10-02",
+  "combined_observed_usage": {
+    "scope": "Original from-empty Sheet generation, original from-empty GitHub generation, and four GitHub continuation repairs only.",
+    "observed_total_tokens": 92170434,
+    "interpretation": "lower_bound",
+    "token_accounting_complete": false,
+    "excluded": [
+      "Counter candidate experiment",
+      "Historical prototypes and development continuations",
+      "Failed-request token usage not returned by the provider"
+    ],
+    "cost_actual": null,
+    "eligible_for_complete_token_ranking": false
+  }
+}

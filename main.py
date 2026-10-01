@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import os
 import time
 from dataclasses import asdict
@@ -28,6 +29,15 @@ from verification import verify_application
 app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False)
 
 
+def batch_seconds(remaining_seconds: float, batches: list[list]) -> float:
+    weights = [math.sqrt(sum(len(item.description) for item in batch) + 1000) for batch in batches]
+    return max(0, remaining_seconds) * weights[0] / sum(weights)
+
+
+def failed_checks(checks: list[dict]) -> str:
+    return json.dumps([check for check in checks if check["returncode"] != 0], ensure_ascii=False)
+
+
 def integration_task(items: dict) -> str:
     return (
         "Integrate the completed application against the full feature contract below. "
@@ -38,7 +48,9 @@ def integration_task(items: dict) -> str:
         "and controls, including creating fresh data from the home page. Check early features still work after "
         "later changes; do not rely only on seeded URLs or direct API tests. Use real browser smoke checks "
         "for creation, mutation, validation and reload. Fix integration failures while preserving working "
-        "behavior. Reuse existing tests and avoid redesigning the architecture. Build, check startup, and "
+        "behavior. Seed initialization must be idempotent across backend restarts, preserve subsequent user "
+        "edits/deletions, and never duplicate or recreate revoked grants. "
+        "Reuse existing tests and avoid redesigning the architecture. Build, check startup, and "
         "report unresolved requirements honestly.\n\n"
         + render_requirements(ordered_requirements(items), include_scenarios=False)
     )
@@ -74,6 +86,7 @@ def main(
         int, typer.Option(min=0, help="Separate budget for repairing failed final checks, in seconds")
     ] = 900,
     public_checks: Annotated[bool, typer.Option("--public-checks/--no-public-checks")] = True,
+    batch_checks: Annotated[bool, typer.Option("--batch-checks/--no-batch-checks")] = True,
     verification_command: Annotated[
         list[str] | None, typer.Option(help="External verification command; repeatable")
     ] = None,
@@ -89,6 +102,8 @@ def main(
     if path.is_dir():
         path /= "requirements.yaml"
     items = load_requirements(path)
+    prerequisites = path.with_name("prerequisites.md")
+    prerequisite_text = prerequisites.read_text(encoding="utf-8") if prerequisites.is_file() else ""
     batches = [[item] for item in ordered_requirements(items)] if variant == "atomic" else make_batches(items)
     if start_batch > len(batches):
         raise typer.BadParameter("start-batch exceeds the number of requirement batches")
@@ -130,13 +145,14 @@ def main(
     prepare_workspace(workspace)
     run_directory = workspace.parent / f"{workspace.name}-runs" / str(time.time_ns())
     started = time.monotonic()
+    implementation_deadline = started + time_limit
     agent = CodingAgent(
         OpenAI(api_key=key, base_url=endpoint, max_retries=0),
         model_name,
         tools,
         run_directory,
         max_steps=max_steps,
-        deadline=started + time_limit,
+        deadline=implementation_deadline,
         compact=variant == "compact",
         reasoning_effort=reasoning_effort,
     )
@@ -155,16 +171,40 @@ def main(
         "Implement the scaffold and run a startup smoke check; later stages implement the listed features."
     )
     results = [agent.run(task, "foundation")] if variant == "atomic" and start_batch == 1 else []
+    task_target = public_check_target(items) if public_checks else None
+    attempted = [item.identifier for batch in batches[: start_batch - 1] for item in batch]
+    batch_verification = []
     for number, batch in enumerate(batches[start_batch - 1 :], start_batch):
-        if agent.requests_stopped or time.monotonic() >= started + time_limit:
+        if agent.requests_stopped or time.monotonic() >= implementation_deadline:
             break
+        allowance = batch_seconds(implementation_deadline - time.monotonic(), batches[number - 1 :])
+        batch_deadline = min(implementation_deadline, time.monotonic() + allowance)
+        generation_deadline = time.monotonic() + allowance * (0.75 if batch_checks and task_target else 1)
+        agent.deadline = min(batch_deadline, generation_deadline)
         task = (
             f"Implement batch {number}/{len(batches)} in the existing application. "
             "Read ARCHITECTURE.md and relevant source first. Preserve existing working features. "
             "All acceptance descriptions and scenarios below are requirements, including initial seed data. "
             "Implement behavior, persistence, validation, permissions, and exact accessible controls. "
             "Check scenarios through actual UI/API interactions, not only static source checks. "
-            "Update architecture notes if interfaces change.\n\n" + render_requirements(batch)
+            "Do not change required seed records to make smoke tests pass; create separate test objects. "
+            "Implement all acceptance behavior within this stage's allocated time. "
+            "Record unfinished requirement IDs and reproducible failures in ARCHITECTURE.md before finish. "
+            "Update architecture notes if interfaces change.\n\n"
+            + ("Task prerequisites:\n" + prerequisite_text + "\n\n" if prerequisite_text else "")
+            + render_requirements(batch)
+        )
+        print(
+            json.dumps(
+                {
+                    "event": "batch_started",
+                    "batch": number,
+                    "total_batches": len(batches),
+                    "budget_seconds": round(allowance, 1),
+                    "requirements": [item.identifier for item in batch],
+                }
+            ),
+            flush=True,
         )
         if number == 1 and variant != "atomic":
             task = (
@@ -178,17 +218,51 @@ def main(
         for item in batch:
             runtime.events.mark_implementation_started(item.identifier)
         result = agent.run(task, f"batch-{number:02d}")
-        if result["status"] == "step_limit" and time.monotonic() < started + time_limit:
+        if result["status"] in {"step_limit", "api_unavailable"} and time.monotonic() < agent.deadline:
             previous = result
             result = agent.run(
-                "The previous attempt reached its step limit. Continue from the existing files, inspect "
-                "the implemented behavior, complete missing acceptance criteria, and finish this batch. "
-                "Preserve working code and avoid rebuilding it.\n\n" + task,
+                "Continue the unfinished stage using the existing conversation and files. "
+                "Complete missing acceptance criteria and finish this batch. "
+                "Preserve working code and avoid rebuilding it.",
                 f"batch-{number:02d}-continuation",
+                resume_from=previous["stage"],
             )
             result["previous_attempt"] = previous
+        attempted.extend(item.identifier for item in batch)
+        if batch_checks and task_target and result["status"] not in {"api_error", "api_unavailable"}:
+            checks = verify_application(tools, [], task_target, attempted, deadline=batch_deadline)
+            batch_verification.append({"batch": number, "checks": checks})
+            if any(check["returncode"] != 0 for check in checks) and time.monotonic() < batch_deadline:
+                agent.deadline = time.monotonic() + (batch_deadline - time.monotonic()) * 0.75
+                previous = result
+                result = agent.run(
+                    "Independent checks found failures in implemented requirements. Fix the product behavior; "
+                    "keep the test assertions and authoritative seed values unchanged. Read each failed test "
+                    "and its complete workflow, then fix shared causes first. Use the reported reproduction_command "
+                    "first to rerun a public check; you may append -k to select a failing test, preserving all other "
+                    "arguments.\n" + failed_checks(checks),
+                    f"batch-{number:02d}-repair",
+                    resume_from=previous["stage"],
+                )
+                result["previous_attempt"] = previous
+                checks = verify_application(tools, [], task_target, attempted, deadline=batch_deadline)
+                batch_verification[-1]["checks_after_repair"] = checks
+            result["independent_checks_passed"] = all(check["returncode"] == 0 for check in checks)
+            result["business_checks_executed"] = sum(
+                check.get("passed", 0) + check.get("failed", 0) for check in checks
+            )
+            checked_ids = {
+                identifier
+                for check in checks
+                for case in check.get("cases", [])
+                if case["status"] != "skipped"
+                for identifier in case.get("requirements", [])
+            }
+            result["requirements_without_independent_checks"] = [
+                item.identifier for item in batch if item.identifier not in checked_ids
+            ]
         results.append(result | {"requirements": [item.identifier for item in batch]})
-        if runtime and result["status"] == "finished":
+        if runtime and result["status"] == "finished" and result.get("independent_checks_passed", True):
             for item in batch:
                 runtime.events.mark_implementation_done(item.identifier, result["summary"][:500])
             runtime.git.commit(f"Implement requirements: {', '.join(item.identifier for item in batch)}")
@@ -199,27 +273,37 @@ def main(
         agent.deadline = time.monotonic() + integration_time_limit
         results.append(agent.run(integration_task(items), "integration"))
         runtime.git.commit("Integrate application workflows")
-    task_target = public_check_target(items) if public_checks else None
     checks = verify_application(tools, list(verification_command or []), task_target)
-    agent.deadline = time.monotonic() + repair_time_limit
-    for attempt in range(3):
+    repair_deadline = time.monotonic() + repair_time_limit
+    final_repair_reasoning_effort = None
+    for attempt in range(5):
         if (
             agent.requests_stopped
             or all(check["returncode"] == 0 for check in checks)
-            or time.monotonic() >= agent.deadline
+            or time.monotonic() >= repair_deadline
         ):
             break
+        final_repair_reasoning_effort = "high" if reasoning_effort == "low" else reasoning_effort
+        agent.reasoning_effort = final_repair_reasoning_effort
+        agent.deadline = time.monotonic() + (repair_deadline - time.monotonic()) * 0.75
         results.append(
             agent.run(
                 "Repair these independently executed delivery and public workflow checks. Preserve requirements and evaluation "
                 "tests. Read each failing test in full from its reported path using a command, then verify "
                 "every step of that user journey, including later assertions. Never modify the test files. "
+                "Use the reported reproduction_command first to rerun a public check; you may append -k to select "
+                "a failing test, preserving all other arguments. "
                 "The frontend must build and backend npm start must serve frontend/dist using PORT.\n"
-                + json.dumps(checks),
+                + failed_checks(checks),
                 f"repair-{attempt + 1}",
+                resume_from=f"repair-{attempt}" if attempt else None,
             )
         )
-        checks = verify_application(tools, list(verification_command or []), task_target)
+        checks = verify_application(tools, list(verification_command or []), task_target, deadline=repair_deadline)
+    if any(check.get("timed_out") for check in checks):
+        workflow_checks = [check for check in checks if check["command"] == f"public {task_target} workflow checks"]
+        checks = verify_application(tools, list(verification_command or []), deadline=time.monotonic() + 180)
+        checks.extend(workflow_checks)
     runtime.git.commit("Verify application build and startup")
     summary = {
         "model": model_name,
@@ -227,7 +311,9 @@ def main(
         "variant": variant,
         "start_batch": start_batch,
         "reasoning_effort": reasoning_effort,
+        "final_repair_reasoning_effort": final_repair_reasoning_effort,
         "public_check_target": task_target,
+        "batch_verification": batch_verification,
         "usage": asdict(agent.usage),
         "token_accounting_complete": agent.token_accounting_complete,
         "model_requests_stopped": agent.requests_stopped,
@@ -248,7 +334,7 @@ def main(
         ),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "all_batches_finished": len([result for result in results if "requirements" in result]) == len(batches)
-        and all(result["status"] == "finished" for result in results),
+        and all(result["status"] == "finished" and result.get("independent_checks_passed", True) for result in results),
     }
     (run_directory / "summary.json").write_text(tools.redact(json.dumps(summary, indent=2)), encoding="utf-8")
     if runtime:

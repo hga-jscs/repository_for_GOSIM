@@ -1,6 +1,7 @@
 import re
 import uuid
 
+import pytest
 from playwright.sync_api import expect
 from test_browser import register_account
 
@@ -21,6 +22,7 @@ def create_repository(page, application, visibility="Private"):
     return name
 
 
+@pytest.mark.requirements("REQ-3-2-1", "REQ-3-1", "REQ-1-1-1", "REQ-1-1-2")
 def test_github_full_private_repository_is_persistent_and_hidden_from_search(page, browser, application):
     name = create_repository(page, application)
     expect(page.get_by_text("Private", exact=True).first).to_be_visible()
@@ -39,6 +41,7 @@ def test_github_full_private_repository_is_persistent_and_hidden_from_search(pag
         expect(visitor.get_by_role("link", name=name, exact=True)).to_have_count(0)
 
 
+@pytest.mark.requirements("REQ-3-4", "REQ-1-1-1", "REQ-1-1-2", "REQ-3-2-1", "REQ-3-3")
 def test_github_full_visibility_change_allows_visitors(page, browser, application):
     name = create_repository(page, application)
     saved_url = page.url
@@ -55,6 +58,7 @@ def test_github_full_visibility_change_allows_visitors(page, browser, applicatio
         expect(visitor.get_by_role("link", name="README.md", exact=True)).to_be_visible()
 
 
+@pytest.mark.requirements("REQ-5-2-1", "REQ-5-1-1", "REQ-1-1-1", "REQ-1-1-2", "REQ-3-2-1")
 def test_github_full_issue_validation_creation_and_live_filter(page, application):
     create_repository(page, application, "Public")
     page.get_by_role("link", name="Issues", exact=True).click()
@@ -80,12 +84,19 @@ def test_github_full_issue_validation_creation_and_live_filter(page, application
     expect(page.get_by_role("link", name=title, exact=True)).to_have_count(0)
 
 
+@pytest.mark.requirements("REQ-4-3-2", "REQ-1-1-1", "REQ-1-1-2", "REQ-3-2-1", "REQ-4-3-1")
 def test_github_full_branch_validation_and_reload(page, application):
     create_repository(page, application, "Public")
-    page.get_by_role("button", name="Branch main", exact=True).click()
+    branch_selector = page.get_by_role("button", name=re.compile(r"^Branch .+"))
+    expect(branch_selector).to_have_count(1)
+    match = re.search(r'button "Branch ([^"]+)"', branch_selector.aria_snapshot())
+    assert match, "The current branch must be exposed in the Branch button's accessible name"
+    default_branch = match.group(1)
+    branch_selector.click()
     find = page.get_by_role("textbox", name="Find branch", exact=True)
     find.fill("invalid..branch")
     expect(page.get_by_text("Invalid branch", exact=True).first).to_be_visible()
+    expect(page.get_by_role("button", name="Branch " + default_branch, exact=True)).to_be_visible()
     branch = "branch-" + uuid.uuid4().hex[:10]
     find.fill(branch)
     page.get_by_role("option", name="Create branch: " + branch, exact=True).click()
