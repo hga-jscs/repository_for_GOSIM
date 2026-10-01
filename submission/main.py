@@ -43,6 +43,9 @@ def main(
     time_limit: Annotated[
         int, typer.Option(min=1, help="Implementation budget in seconds; final checks run afterward")
     ] = 7200,
+    repair_time_limit: Annotated[
+        int, typer.Option(min=0, help="Separate budget for repairing failed final checks, in seconds")
+    ] = 300,
     verification_command: Annotated[
         list[str] | None, typer.Option(help="External verification command; repeatable")
     ] = None,
@@ -165,8 +168,9 @@ def main(
             for item in batch:
                 runtime.events.mark_implementation_failed(item.identifier, result["summary"][:500])
     checks = verify_application(tools, list(verification_command or []))
+    agent.deadline = time.monotonic() + repair_time_limit
     for attempt in range(2):
-        if all(check["returncode"] == 0 for check in checks) or time.monotonic() >= started + time_limit:
+        if all(check["returncode"] == 0 for check in checks) or time.monotonic() >= agent.deadline:
             break
         results.append(
             agent.run(

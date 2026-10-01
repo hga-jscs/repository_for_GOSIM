@@ -35,8 +35,17 @@ def select_range(page, start, end):
 
 
 def data_command(page, name):
-    page.get_by_role("button", name="Data", exact=True).click()
+    page.get_by_text("Data", exact=True).filter(visible=True).first.click()
     page.get_by_role("menuitem", name=name, exact=True).click()
+
+
+def choose(page, label, option):
+    control = page.get_by_role("combobox", name=label, exact=True)
+    if control.evaluate("element => element.tagName") == "SELECT":
+        control.select_option(label=option)
+    else:
+        control.click()
+        page.get_by_role("option", name=option, exact=True).click()
 
 
 def test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells(page, application):
@@ -135,8 +144,8 @@ def test_sheet_full_stable_sort_moves_whole_rows(page, application):
     data_command(page, "Sort range")
     dialog = page.get_by_role("dialog", name="Sort range", exact=True)
     dialog.get_by_role("checkbox", name="Data has header row", exact=True).check()
-    dialog.get_by_role("combobox", name="Sort by", exact=True).select_option(label="Amount")
-    dialog.get_by_role("combobox", name="Order", exact=True).select_option(label="Ascending")
+    choose(page, "Sort by", "Amount")
+    choose(page, "Order", "Ascending")
     dialog.get_by_role("button", name="Sort", exact=True).click()
     expect(cell(page, "A2")).to_have_text("second")
     expect(cell(page, "A3")).to_have_text("first")
@@ -152,7 +161,7 @@ def test_sheet_full_number_validation_persists(page, application):
     select_range(page, "B2", "B4")
     data_command(page, "Data validation")
     dialog = page.get_by_role("dialog", name="Data validation", exact=True)
-    dialog.get_by_role("combobox", name="Rule type", exact=True).select_option(label="Number range")
+    choose(page, "Rule type", "Number range")
     dialog.get_by_label("Minimum", exact=True).fill("0")
     dialog.get_by_label("Maximum", exact=True).fill("100")
     dialog.get_by_role("button", name="Save", exact=True).click()
