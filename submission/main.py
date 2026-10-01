@@ -207,7 +207,9 @@ def main(
         results.append(
             agent.run(
                 "Repair these independently executed delivery and public workflow checks. Preserve requirements and evaluation "
-                "tests. The frontend must build and backend npm start must serve frontend/dist using PORT.\n"
+                "tests. Read each failing test in full from its reported path using a command, then verify "
+                "every step of that user journey, including later assertions. Never modify the test files. "
+                "The frontend must build and backend npm start must serve frontend/dist using PORT.\n"
                 + json.dumps(checks),
                 f"repair-{attempt + 1}",
             )

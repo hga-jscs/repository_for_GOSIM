@@ -1,0 +1,170 @@
+{
+  "scope": "Recovered full applications with public-test feedback; not a fresh fixed-version benchmark or official score.",
+  "model": "deepseek-flash",
+  "usage_note": "Recorded input plus output tokens are a lower bound because interrupted requests may lack usage. Implementation seconds exclude independent verification and pauses. Do not use these records for token/time ranking.",
+  "github": {
+    "platform": "Windows / Edge",
+    "fresh_run": false,
+    "token_accounting_complete": false,
+    "before_integration": {
+      "test_github_registration_controls": true,
+      "test_github_invalid_registration_preserves_safe_inputs": true,
+      "test_github_session_reload_and_browser_isolation": true,
+      "test_github_invalid_login_uses_same_error": true,
+      "test_github_duplicate_username_keeps_input": true,
+      "test_github_full_private_repository_is_persistent_and_hidden_from_search": false,
+      "test_github_full_visibility_change_allows_visitors": false,
+      "test_github_full_issue_validation_creation_and_live_filter": false,
+      "test_github_full_branch_validation_and_reload": false
+    },
+    "after_integration_and_browser_repair": {
+      "test_github_registration_controls": true,
+      "test_github_invalid_registration_preserves_safe_inputs": true,
+      "test_github_session_reload_and_browser_isolation": true,
+      "test_github_invalid_login_uses_same_error": true,
+      "test_github_duplicate_username_keeps_input": true,
+      "test_github_full_private_repository_is_persistent_and_hidden_from_search": false,
+      "test_github_full_visibility_change_allows_visitors": true,
+      "test_github_full_issue_validation_creation_and_live_filter": false,
+      "test_github_full_branch_validation_and_reload": false
+    },
+    "after_two_workflow_repairs": {
+      "test_github_registration_controls": true,
+      "test_github_invalid_registration_preserves_safe_inputs": true,
+      "test_github_session_reload_and_browser_isolation": true,
+      "test_github_invalid_login_uses_same_error": true,
+      "test_github_duplicate_username_keeps_input": true,
+      "test_github_full_private_repository_is_persistent_and_hidden_from_search": true,
+      "test_github_full_visibility_change_allows_visitors": true,
+      "test_github_full_issue_validation_creation_and_live_filter": false,
+      "test_github_full_branch_validation_and_reload": false
+    },
+    "final_outcomes": {
+      "test_github_registration_controls": true,
+      "test_github_invalid_registration_preserves_safe_inputs": true,
+      "test_github_session_reload_and_browser_isolation": true,
+      "test_github_invalid_login_uses_same_error": true,
+      "test_github_duplicate_username_keeps_input": true,
+      "test_github_full_private_repository_is_persistent_and_hidden_from_search": true,
+      "test_github_full_visibility_change_allows_visitors": true,
+      "test_github_full_issue_validation_creation_and_live_filter": true,
+      "test_github_full_branch_validation_and_reload": true
+    },
+    "recorded_usage_lower_bound": {
+      "input_tokens": 43564258,
+      "output_tokens": 862878,
+      "cached_tokens": 30918144,
+      "calls": 1161,
+      "tool_calls": 1610,
+      "elapsed_seconds": 5157.702
+    },
+    "phase_usage": {
+      "github-official-runs": {
+        "input_tokens": 34928748,
+        "output_tokens": 689713,
+        "cached_tokens": 24089600,
+        "calls": 905,
+        "tool_calls": 1288,
+        "elapsed_seconds": 3902.078
+      },
+      "github-integration": {
+        "input_tokens": 3277585,
+        "output_tokens": 73085,
+        "cached_tokens": 2343168,
+        "calls": 60,
+        "tool_calls": 110,
+        "elapsed_seconds": 357.641
+      },
+      "github-browser-repair": {
+        "input_tokens": 162297,
+        "output_tokens": 3449,
+        "cached_tokens": 149632,
+        "calls": 13,
+        "tool_calls": 12,
+        "elapsed_seconds": 48.875
+      },
+      "github-workflow-repair": {
+        "input_tokens": 2983759,
+        "output_tokens": 40203,
+        "cached_tokens": 2352000,
+        "calls": 120,
+        "tool_calls": 133,
+        "elapsed_seconds": 500.218
+      },
+      "github-final-repair": {
+        "input_tokens": 1955588,
+        "output_tokens": 50277,
+        "cached_tokens": 1749120,
+        "calls": 49,
+        "tool_calls": 49,
+        "elapsed_seconds": 301.75
+      },
+      "github-persistence-repair": {
+        "input_tokens": 256281,
+        "output_tokens": 6151,
+        "cached_tokens": 234624,
+        "calls": 14,
+        "tool_calls": 18,
+        "elapsed_seconds": 47.14
+      }
+    },
+    "notes": [
+      "Implementation was resumed after malformed model JSON and a Windows log-file sharing conflict.",
+      "One experimental run summary was interrupted by a harness integrity assertion after the bootstrap path in conftest.py was updated for ZIP packaging. Test case assertions were unchanged; final outcomes were verified afterward.",
+      "Reading the complete failing workflow was added to the final repair prompt."
+    ],
+    "official_pass_rate": null
+  },
+  "sheet": {
+    "platform": "Linux / Chromium",
+    "fresh_run": false,
+    "token_accounting_complete": false,
+    "before_public_feedback": {
+      "test_sheet_blank_workbook_state_and_reload": true,
+      "test_sheet_workbook_direct_url_in_new_browser": true,
+      "test_sheet_rename_validation_and_persistence": true,
+      "test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells": true,
+      "test_sheet_full_invalid_csv_does_not_create_a_workbook": true,
+      "test_sheet_full_worksheet_switch_keeps_data_and_selection": true,
+      "test_sheet_full_formula_chain_recalculates_and_persists": true,
+      "test_sheet_full_formula_errors_can_be_corrected": true,
+      "test_sheet_full_undo_redo_and_new_branch": false,
+      "test_sheet_full_stable_sort_moves_whole_rows": true,
+      "test_sheet_full_number_validation_persists": false
+    },
+    "final_outcomes": {
+      "test_sheet_blank_workbook_state_and_reload": true,
+      "test_sheet_workbook_direct_url_in_new_browser": true,
+      "test_sheet_rename_validation_and_persistence": true,
+      "test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells": true,
+      "test_sheet_full_invalid_csv_does_not_create_a_workbook": true,
+      "test_sheet_full_worksheet_switch_keeps_data_and_selection": true,
+      "test_sheet_full_formula_chain_recalculates_and_persists": true,
+      "test_sheet_full_formula_errors_can_be_corrected": true,
+      "test_sheet_full_undo_redo_and_new_branch": true,
+      "test_sheet_full_stable_sort_moves_whole_rows": true,
+      "test_sheet_full_number_validation_persists": true
+    },
+    "recorded_usage_lower_bound": {
+      "input_tokens": 44689698,
+      "output_tokens": 780246,
+      "cached_tokens": 32231936,
+      "calls": 1308,
+      "tool_calls": 1868,
+      "elapsed_seconds": 4547.799
+    },
+    "public_feedback_usage": {
+      "input_tokens": 1364939,
+      "output_tokens": 16362,
+      "cached_tokens": 1103360,
+      "calls": 60,
+      "tool_calls": 79,
+      "elapsed_seconds": 106.109
+    },
+    "notes": [
+      "Implementation resumed at batch 3 after updating the controller, then at batch 11 after a model timeout.",
+      "Final ZIP was extracted in Linux and its own verification code passed install, build, HTTP, browser startup, and all 11 public workflows."
+    ],
+    "official_pass_rate": null
+  }
+}
