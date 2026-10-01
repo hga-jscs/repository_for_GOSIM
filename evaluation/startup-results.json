@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-01",
+  "scope": "Small real-model startup task from an extracted ZIP with runner-provided requirements/ already in template1. Not a full benchmark evaluation.",
+  "regression": "Nonempty runner workspace was rejected before the first model call; plan-only packaging tests skipped initialization.",
+  "runtime_archive_sha256": "92f6f7f77c78b4f2acc3e0b10a58f1029748a1c4451795406f0c608b3c5ed5c8",
+  "agent_tests": {
+    "windows_passed": 42,
+    "linux_passed": 41,
+    "linux_windows_only_skipped": 1
+  },
+  "windows": {
+    "model": "deepseek-flash",
+    "provider": "https://api.deepseek.com",
+    "exit_code": 0,
+    "delivery_ready": true,
+    "existing_requirements_preserved": true,
+    "all_batches_finished": false,
+    "usage": {
+      "input_tokens": 62013,
+      "output_tokens": 3671,
+      "cached_tokens": 50304,
+      "calls": 12,
+      "tool_calls": 17,
+      "elapsed_seconds": 50.405
+    },
+    "verification": [
+      {
+        "command": "npm --prefix frontend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix backend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix frontend run build",
+        "returncode": 0
+      },
+      {
+        "command": "backend npm start + HTTP GET / on an unused port",
+        "returncode": 0
+      },
+      {
+        "command": "real browser startup and uncaught frontend errors",
+        "returncode": 0
+      }
+    ]
+  },
+  "linux": {
+    "model": "deepseek-flash",
+    "provider": "https://api.deepseek.com",
+    "exit_code": 0,
+    "delivery_ready": true,
+    "existing_requirements_preserved": true,
+    "all_batches_finished": false,
+    "usage": {
+      "input_tokens": 103652,
+      "output_tokens": 4078,
+      "cached_tokens": 90112,
+      "calls": 16,
+      "tool_calls": 20,
+      "elapsed_seconds": 34.601
+    },
+    "verification": [
+      {
+        "command": "npm --prefix frontend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix backend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix frontend run build",
+        "returncode": 0
+      },
+      {
+        "command": "backend npm start + HTTP GET / on an unused port",
+        "returncode": 0
+      },
+      {
+        "command": "real browser startup and uncaught frontend errors",
+        "returncode": 0
+      }
+    ]
+  },
+  "official_gateway_rerun": false,
+  "official_pass_rate": null
+}

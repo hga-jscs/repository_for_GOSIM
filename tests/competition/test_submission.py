@@ -36,11 +36,148 @@ def test_official_template_integrity_and_preserve_existing_project(tmp_path: Pat
     assert page.read_text() == "previous stage implementation"
 
 
-def test_incomplete_output_is_not_overwritten(tmp_path: Path) -> None:
+@pytest.fixture
+def runner_output(tmp_path: Path) -> tuple[Path, dict[str, bytes]]:
+    workspace = tmp_path / "template1"
+    existing = {
+        "requirements/requirements.yaml": (
+            b"id: ROOT\nname: Test\nchildren:\n  - id: R1\n    name: Page\n    type: ATOMIC\n"
+        ),
+        "requirements/prerequisites.md": "Preserve runner prerequisites.\n保留原内容。\n".encode(),
+        "requirements/reference/screen.png": b"\x89PNG\r\n\x1a\nrunner reference bytes",
+        "runner-metadata.json": b'{"initialized": true}\n',
+    }
+    for name, content in existing.items():
+        path = workspace / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    return workspace, existing
+
+
+def test_runner_requirements_and_metadata_survive_repeat_initialization(
+    runner_output: tuple[Path, dict[str, bytes]],
+) -> None:
+    workspace, existing = runner_output
+    prepare_workspace(workspace)
+    assert all((workspace / part / "package.json").is_file() for part in ("frontend", "backend"))
+    assert all((workspace / name).read_bytes() == content for name, content in existing.items())
+    files = {path.relative_to(workspace): path.read_bytes() for path in workspace.rglob("*") if path.is_file()}
+    prepare_workspace(workspace)
+    assert {path.relative_to(workspace): path.read_bytes() for path in workspace.rglob("*") if path.is_file()} == files
+
+
+def test_incomplete_output_is_preserved_and_filled(tmp_path: Path) -> None:
     (tmp_path / "app.js").write_text("keep")
-    with pytest.raises(ValueError, match="empty"):
+    (tmp_path / "frontend/src").mkdir(parents=True)
+    (tmp_path / "frontend/src/App.tsx").write_text("existing frontend source")
+    prepare_workspace(tmp_path)
+    assert (tmp_path / "app.js").read_text() == "keep"
+    assert (tmp_path / "frontend/src/App.tsx").read_text() == "existing frontend source"
+    assert all((tmp_path / part / "package.json").is_file() for part in ("frontend", "backend"))
+    assert (tmp_path / "frontend/src/main.tsx").is_file()
+
+
+def test_existing_component_is_not_mixed_with_starter(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "package.json").write_text('{"scripts":{"build":"custom-build"}}')
+    (frontend / "custom-entry.js").write_text("existing component")
+    before = {path.name: path.read_bytes() for path in frontend.iterdir()}
+    prepare_workspace(tmp_path)
+    assert {path.name: path.read_bytes() for path in frontend.iterdir()} == before
+    assert (tmp_path / "backend/package.json").is_file()
+    assert (tmp_path / "backend/src/index.js").is_file()
+
+
+def test_prepare_workspace_creates_missing_output(tmp_path: Path) -> None:
+    workspace = tmp_path / "new/output"
+    prepare_workspace(workspace)
+    assert all((workspace / part / "package.json").is_file() for part in ("frontend", "backend"))
+
+
+@pytest.mark.parametrize(
+    ("name", "directory"),  # noqa: PT006 - AGENTS.md requires tuples for parameter names.
+    [("frontend", False), ("frontend/src", False), ("frontend/package.json", True)],
+)
+def test_scaffold_conflicts_leave_output_unchanged(tmp_path: Path, name: str, directory: bool) -> None:
+    conflict = tmp_path / name
+    conflict.parent.mkdir(parents=True, exist_ok=True)
+    if directory:
+        conflict.mkdir()
+    else:
+        conflict.write_text("preserve conflicting file")
+    (tmp_path / "runner-metadata.json").write_text('{"initialized":true}')
+    before = {path.relative_to(tmp_path): path.read_bytes() if path.is_file() else None for path in tmp_path.rglob("*")}
+    with pytest.raises(ValueError):
         prepare_workspace(tmp_path)
-    assert list(tmp_path.iterdir()) == [tmp_path / "app.js"]
+    assert {
+        path.relative_to(tmp_path): path.read_bytes() if path.is_file() else None for path in tmp_path.rglob("*")
+    } == before
+
+
+def test_extracted_archive_starts_with_runner_files_before_model_connection(
+    tmp_path: Path, runner_output: tuple[Path, dict[str, bytes]]
+) -> None:
+    workspace, existing = runner_output
+    package(tmp_path / "submission.zip")
+    with zipfile.ZipFile(tmp_path / "submission.zip") as archive:
+        archive.extractall(tmp_path / "agent")
+    source = tmp_path / "requirements-source"
+    source.mkdir()
+    (source / "requirements.yaml").write_bytes(existing["requirements/requirements.yaml"])
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("ARCBENCH_", "ARC_BENCH_", "OPENAI_")) and "PROXY" not in name.upper()
+    }
+    with socket.socket() as endpoint:
+        endpoint.bind(("127.0.0.1", 0))
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(tmp_path / "agent/main.py"),
+                str(source),
+                "--output-dir",
+                str(workspace),
+                "--type",
+                "web",
+                "--max-steps",
+                "1",
+                "--time-limit",
+                "30",
+                "--integration-time-limit",
+                "0",
+                "--repair-time-limit",
+                "0",
+            ],
+            cwd=tmp_path / "agent",
+            env=environment
+            | {
+                "OPENAI_API_KEY": "local-startup-test-key",
+                "OPENAI_BASE_URL": f"http://127.0.0.1:{endpoint.getsockname()[1]}/v1",
+                "MODEL": "startup-test",
+                "NO_PROXY": "*",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONIOENCODING": "utf-8",
+            },
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=40,
+        )
+    assert result.returncode != 0 and "APIConnectionError" in result.stderr, result.stdout + result.stderr
+    assert "local-startup-test-key" not in result.stdout + result.stderr
+    assert all((workspace / part / "package.json").is_file() for part in ("frontend", "backend"))
+    assert all((workspace / name).read_bytes() == content for name, content in existing.items())
+    assert (source / "requirements.yaml").read_bytes() == existing["requirements/requirements.yaml"]
+    assert (workspace / ".git/HEAD").is_file()
+    assert (workspace / ".arc/traceability").is_dir()
+    events = [json.loads(line) for line in (workspace / ".arc/runner-events.jsonl").read_text().splitlines()]
+    assert any(event.get("type") == "runner_state" and event.get("state") == "running" for event in events)
+    assert any(event.get("node_id") == "R1" and event.get("status") == "running" for event in events)
+    assert all(event.get("status") not in {"completed", "passed"} for event in events)
+    assert not list((tmp_path / "template1-runs").rglob("*.json"))
+    assert '"usage"' not in result.stdout
 
 
 def test_archive_is_deterministic_and_entrypoint_accepts_official_arguments(tmp_path: Path) -> None:
