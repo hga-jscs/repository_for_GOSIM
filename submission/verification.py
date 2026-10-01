@@ -62,6 +62,7 @@ def startup_check(tools: WorkspaceTools) -> dict:
         port = int(environment["PORT"])
         status = 0
         body = ""
+        error = ""
         if ready:
             connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
             try:
@@ -69,6 +70,8 @@ def startup_check(tools: WorkspaceTools) -> dict:
                 response = connection.getresponse()
                 status = response.status
                 body = response.read(8192).decode("utf-8", errors="replace")
+            except (http.client.HTTPException, OSError) as failure:
+                error = f"{type(failure).__name__}: {failure}"
             finally:
                 connection.close()
         output.seek(0)
@@ -76,10 +79,10 @@ def startup_check(tools: WorkspaceTools) -> dict:
     return {
         "command": "backend npm start + HTTP GET / on an unused port",
         "port": port,
-        "returncode": 0 if 200 <= status < 300 and "<" in body else 1,
+        "returncode": 0 if not error and 200 <= status < 300 and "<" in body else 1,
         "timed_out": not ready,
         "seconds": round(time.monotonic() - started, 3),
-        "output": tools.redact(bounded(log + f"\nHTTP {status}\n{body[:400]}")),
+        "output": tools.redact(bounded(log + f"\nHTTP {status}\n{body[:400]}\n{error}")),
     }
 
 
@@ -96,15 +99,26 @@ def verify_application(tools: WorkspaceTools, extra_commands: list[str], task_ta
                     "output": f"Missing {folder}/package.json",
                 }
             ]
-        scripts = json.loads(package.read_text(encoding="utf-8")).get("scripts", {})
+        try:
+            manifest = json.loads(package.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            return [
+                {
+                    "command": "validate evaluator layout",
+                    "returncode": 1,
+                    "timed_out": False,
+                    "output": f"Invalid {folder}/package.json: {error}",
+                }
+            ]
+        scripts = manifest.get("scripts") if isinstance(manifest, dict) else None
         required = "build" if folder == "frontend" else "start"
-        if required not in scripts:
+        if not isinstance(scripts, dict) or not isinstance(scripts.get(required), str) or not scripts[required].strip():
             return [
                 {
                     "command": "validate evaluator scripts",
                     "returncode": 1,
                     "timed_out": False,
-                    "output": f"Missing {folder} script: {required}",
+                    "output": f"Missing or invalid {folder} script: {required}; expected a nonempty command string",
                 }
             ]
     commands = [

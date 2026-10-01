@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "submission"))
 from package import package
 from scaffold import prepare_workspace
 from tools import WorkspaceTools
-from verification import browser_check, startup_check
+from verification import browser_check, startup_check, verify_application
 
 
 def test_official_template_integrity_and_preserve_existing_project(tmp_path: Path) -> None:
@@ -131,6 +131,47 @@ def test_real_startup_probe_checks_http_and_releases_port(tmp_path: Path, status
     result = startup_check(tools)
     assert result["returncode"] == expected
     assert f"HTTP {status}" in result["output"]
+    with socket.socket() as connection:
+        connection.settimeout(1)
+        assert connection.connect_ex(("127.0.0.1", result["port"])) != 0
+
+
+@pytest.mark.parametrize(
+    ("folder", "manifest"),  # noqa: PT006 - AGENTS.md requires tuples for parameter names.
+    [
+        ("frontend", '{"scripts":{"build":"vite build"},}'),
+        ("frontend", "null"),
+        ("frontend", "[]"),
+        ("frontend", '{"scripts":null}'),
+        ("backend", '{"scripts":[]}'),
+        ("backend", '{"scripts":{"start":null}}'),
+        ("backend", '{"scripts":{"start":true}}'),
+        ("backend", '{"scripts":{"start":"  "}}'),
+    ],
+)
+def test_invalid_generated_manifests_return_repair_feedback(tmp_path: Path, folder: str, manifest: str) -> None:
+    tools = WorkspaceTools(tmp_path)
+    tools.write_file("frontend/package.json", '{"scripts":{"build":"must-not-run"}}')
+    tools.write_file("backend/package.json", '{"scripts":{"start":"must-not-run"}}')
+    tools.write_file(f"{folder}/package.json", manifest)
+    result = verify_application(tools, [])
+    assert len(result) == 1 and result[0]["returncode"] == 1
+    assert folder in result[0]["output"]
+    assert result[0]["command"].startswith("validate evaluator")
+    assert (tmp_path / folder / "package.json").read_text(encoding="utf-8") == manifest
+    assert not list(tmp_path.glob("*/package-lock.json"))
+
+
+def test_startup_disconnect_returns_repair_feedback_and_releases_port(tmp_path: Path) -> None:
+    tools = WorkspaceTools(tmp_path)
+    tools.write_file("backend/package.json", '{"scripts":{"start":"node server.js"}}')
+    tools.write_file(
+        "backend/server.js",
+        "require('http').createServer((req,res)=>req.socket.destroy()).listen(process.env.PORT);",
+    )
+    result = startup_check(tools)
+    assert result["returncode"] == 1 and not result["timed_out"]
+    assert "RemoteDisconnected" in result["output"]
     with socket.socket() as connection:
         connection.settimeout(1)
         assert connection.connect_ex(("127.0.0.1", result["port"])) != 0
