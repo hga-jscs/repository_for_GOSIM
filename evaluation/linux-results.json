@@ -1,0 +1,32 @@
+[
+  {
+    "candidate": "sheet-managed-runs",
+    "model": "deepseek-flash",
+    "requirements_sha256": "3b3a8a9df6e3cfe1f0c480473e55548c86e8cad8cea0046cfea83dc701876420",
+    "usage": {
+      "input_tokens": 1399935,
+      "output_tokens": 30210,
+      "cached_tokens": 1376896,
+      "calls": 45,
+      "tool_calls": 45,
+      "elapsed_seconds": 145.564
+    },
+    "all_batches_finished": true,
+    "startup_passed": true
+  },
+  {
+    "candidate": "sheet-agent-runs",
+    "model": "deepseek-flash",
+    "requirements_sha256": "3b3a8a9df6e3cfe1f0c480473e55548c86e8cad8cea0046cfea83dc701876420",
+    "usage": {
+      "input_tokens": 1948072,
+      "output_tokens": 40403,
+      "cached_tokens": 1824896,
+      "calls": 69,
+      "tool_calls": 78,
+      "elapsed_seconds": 681.634
+    },
+    "all_batches_finished": true,
+    "startup_passed": true
+  }
+]

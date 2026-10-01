@@ -1,0 +1,126 @@
+[
+  {
+    "candidate": "prototype-compact",
+    "protocol": "deepseek-flash-public-auth-and-workbook-subsets-2026-10-01",
+    "outcomes": {
+      "github/registration_exact_controls": true,
+      "github/registration_simultaneous_errors": true,
+      "github/registration_preserves_username": true,
+      "github/registration_preserves_email": true,
+      "github/registration_clears_password": true,
+      "github/registration_redirects_to_login": true,
+      "github/new_account_can_login": true,
+      "github/login_persists_after_reload": true,
+      "github/browser_sessions_are_isolated": true,
+      "github/wrong_password_generic_error": true,
+      "github/unknown_account_same_error": true,
+      "github/duplicate_username_rejected_and_input_retained": true,
+      "sheet/open_seeded_workbook": true,
+      "sheet/workbook_stable_url_reload": true,
+      "sheet/rename_prefilled_saved_name": true,
+      "sheet/empty_workbook_name_rejected": true,
+      "sheet/rename_trims_whitespace": true,
+      "sheet/rename_persists_editor_and_home": true,
+      "sheet/create_blank_workbook": false,
+      "sheet/blank_has_single_sheet": false,
+      "sheet/blank_selects_a1": false,
+      "sheet/blank_a1_has_no_seed_data": false,
+      "sheet/blank_persists_reload": false,
+      "sheet/grid_multiselect_semantics": false
+    },
+    "tokens": 2440619,
+    "seconds": 610.984,
+    "details": [
+      {
+        "task": "github",
+        "usage": {
+          "input_tokens": 1119058,
+          "output_tokens": 51075,
+          "cached_tokens": 1103360,
+          "calls": 35,
+          "tool_calls": 46,
+          "elapsed_seconds": 240.5
+        },
+        "all_batches_finished": false,
+        "passed": 12,
+        "total": 12
+      },
+      {
+        "task": "sheet",
+        "usage": {
+          "input_tokens": 1217556,
+          "output_tokens": 52930,
+          "cached_tokens": 1202816,
+          "calls": 45,
+          "tool_calls": 44,
+          "elapsed_seconds": 370.484
+        },
+        "all_batches_finished": false,
+        "passed": 6,
+        "total": 12
+      }
+    ]
+  },
+  {
+    "candidate": "prototype-efficient",
+    "protocol": "deepseek-flash-public-auth-and-workbook-subsets-2026-10-01",
+    "outcomes": {
+      "github/registration_exact_controls": true,
+      "github/registration_simultaneous_errors": true,
+      "github/registration_preserves_username": true,
+      "github/registration_preserves_email": true,
+      "github/registration_clears_password": true,
+      "github/registration_redirects_to_login": true,
+      "github/new_account_can_login": true,
+      "github/login_persists_after_reload": true,
+      "github/browser_sessions_are_isolated": true,
+      "github/wrong_password_generic_error": true,
+      "github/unknown_account_same_error": true,
+      "github/duplicate_username_rejected_and_input_retained": true,
+      "sheet/open_seeded_workbook": true,
+      "sheet/workbook_stable_url_reload": true,
+      "sheet/rename_prefilled_saved_name": true,
+      "sheet/empty_workbook_name_rejected": true,
+      "sheet/rename_trims_whitespace": true,
+      "sheet/rename_persists_editor_and_home": true,
+      "sheet/create_blank_workbook": true,
+      "sheet/blank_has_single_sheet": true,
+      "sheet/blank_selects_a1": true,
+      "sheet/blank_a1_has_no_seed_data": true,
+      "sheet/blank_persists_reload": true,
+      "sheet/grid_multiselect_semantics": true
+    },
+    "tokens": 1686329,
+    "seconds": 435.813,
+    "details": [
+      {
+        "task": "github",
+        "usage": {
+          "input_tokens": 587535,
+          "output_tokens": 28044,
+          "cached_tokens": 577280,
+          "calls": 24,
+          "tool_calls": 23,
+          "elapsed_seconds": 129.36
+        },
+        "all_batches_finished": true,
+        "passed": 12,
+        "total": 12
+      },
+      {
+        "task": "sheet",
+        "usage": {
+          "input_tokens": 1022884,
+          "output_tokens": 47866,
+          "cached_tokens": 1009792,
+          "calls": 40,
+          "tool_calls": 39,
+          "elapsed_seconds": 306.453
+        },
+        "all_batches_finished": true,
+        "passed": 12,
+        "total": 12
+      }
+    ]
+  }
+]
