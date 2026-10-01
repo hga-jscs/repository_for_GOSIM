@@ -20,10 +20,15 @@ def test_official_template_integrity_and_preserve_existing_project(tmp_path: Pat
     source = Path(__file__).resolve().parents[2] / "submission"
     manifest = json.loads((source / "template-files.json").read_text())
     assert all(hashlib.sha256((source / name).read_bytes()).hexdigest() == digest for name, digest in manifest.items())
+    (tmp_path / ".arc").mkdir()
+    (tmp_path / ".arc/runner-events.jsonl").write_text("existing runner event\n")
+    (tmp_path / ".gitignore").write_text("existing ignore rules\n")
     prepare_workspace(tmp_path)
     assert (tmp_path / "frontend/package.json").is_file()
     assert (tmp_path / "backend/package.json").is_file()
     assert not (tmp_path / "template.yaml").exists()
+    assert (tmp_path / ".arc/runner-events.jsonl").read_text() == "existing runner event\n"
+    assert (tmp_path / ".gitignore").read_text() == "existing ignore rules\n"
     page = tmp_path / "frontend/src/App.tsx"
     page.write_text("previous stage implementation")
     prepare_workspace(tmp_path)

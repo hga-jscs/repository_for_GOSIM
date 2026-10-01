@@ -1,0 +1,29 @@
+{
+  "candidate": "full-sheet-initial-controller",
+  "model": "deepseek-flash",
+  "reasoning_effort": "high",
+  "max_steps": 45,
+  "usage": {
+    "input_tokens": 19977762,
+    "output_tokens": 388662,
+    "cached_tokens": 13294720,
+    "calls": 540,
+    "tool_calls": 801,
+    "elapsed_seconds": 2259.092
+  },
+  "all_batches_finished": false,
+  "outcomes": {
+    "test_sheet_blank_workbook_state_and_reload": true,
+    "test_sheet_workbook_direct_url_in_new_browser": true,
+    "test_sheet_rename_validation_and_persistence": true,
+    "test_sheet_full_csv_roundtrip_preserves_quoted_unicode_and_empty_cells": true,
+    "test_sheet_full_invalid_csv_does_not_create_a_workbook": true,
+    "test_sheet_full_worksheet_switch_keeps_data_and_selection": false,
+    "test_sheet_full_formula_chain_recalculates_and_persists": false,
+    "test_sheet_full_formula_errors_can_be_corrected": false,
+    "test_sheet_full_undo_redo_and_new_branch": true,
+    "test_sheet_full_stable_sort_moves_whole_rows": false,
+    "test_sheet_full_number_validation_persists": false
+  },
+  "official_pass_rate": null
+}
