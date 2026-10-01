@@ -18,6 +18,7 @@ FILES = (
     "LICENSE.md",
     "scaffold.py",
     "verification.py",
+    "browser_check.py",
     "server.py",
     "template-files.json",
     "SOURCES.md",

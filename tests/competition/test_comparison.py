@@ -26,6 +26,7 @@ def test_accuracy_precedes_tokens_and_time() -> None:
         ({"protocol": "different-model"},),
         ({"tokens": -1},),
         ({"seconds": float("nan")},),
+        ({"token_accounting_complete": False},),
     ],
 )
 def test_incomparable_or_invalid_measurements_are_rejected(change: dict) -> None:

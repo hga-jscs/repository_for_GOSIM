@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "submission"))
 from package import package
 from scaffold import prepare_workspace
 from tools import WorkspaceTools
-from verification import startup_check
+from verification import browser_check, startup_check
 
 
 def test_official_template_integrity_and_preserve_existing_project(tmp_path: Path) -> None:
@@ -110,3 +110,21 @@ def test_real_startup_probe_checks_http_and_releases_port(tmp_path: Path, status
     with socket.socket() as connection:
         connection.settimeout(1)
         assert connection.connect_ex(("127.0.0.1", result["port"])) != 0
+
+
+@pytest.mark.parametrize(("script", "expected"), [("", 0), ("throw new Error('broken context')", 1)])  # noqa: PT006
+def test_real_browser_detects_frontend_runtime_errors(tmp_path: Path, script: str, expected: int) -> None:
+    tools = WorkspaceTools(tmp_path)
+    tools.write_file("backend/package.json", '{"scripts":{"start":"node server.js"}}')
+    page = "<html><body><h1>Application</h1><script>" + script + "</script></body></html>"
+    tools.write_file(
+        "backend/server.js",
+        "require('http').createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end("
+        + json.dumps(page)
+        + ");}).listen(Number(process.env.PORT),'0.0.0.0');",
+    )
+    result = browser_check(tools)
+    assert result["returncode"] == expected, result
+    assert "Application" in result["output"]
+    if script:
+        assert "broken context" in result["output"]

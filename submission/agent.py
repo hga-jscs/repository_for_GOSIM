@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from jinja2 import StrictUndefined, Template
-from openai import OpenAI
+from openai import APITimeoutError, OpenAI
 from tools import TOOLS, WorkspaceTools
 
 SYSTEM = """You implement a real web application from authoritative requirements.
@@ -131,6 +131,15 @@ class CodingAgent:
             if self.deadline is not None and time.monotonic() >= self.deadline:
                 result.update(status="time_limit", summary="Run deadline reached")
                 break
+            if step == 12:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Twelve calls have been used. Complete the next missing required user journey "
+                        "now and run a focused real check before inspecting another module. "
+                        "If this batch already works, verify it and finish. Keep changes focused.",
+                    }
+                )
             if step == max(1, self.max_steps - 8):
                 messages.append(
                     {
@@ -141,13 +150,23 @@ class CodingAgent:
                     }
                 )
             remaining = max(1, self.deadline - time.monotonic()) if self.deadline else 180
-            response = self.client.with_options(timeout=min(180, remaining)).chat.completions.create(
-                model=self.model,
-                messages=compact_messages(messages) if self.compact else messages,
-                tools=TOOLS,
-                max_tokens=self.max_tokens,
-                extra_body={"reasoning_effort": self.reasoning_effort},
-            )
+            try:
+                response = self.client.with_options(timeout=min(180, remaining)).chat.completions.create(
+                    model=self.model,
+                    messages=compact_messages(messages) if self.compact else messages,
+                    tools=TOOLS,
+                    max_tokens=self.max_tokens,
+                    extra_body={"reasoning_effort": self.reasoning_effort},
+                )
+            except APITimeoutError:
+                result.update(
+                    status="api_timeout",
+                    summary="Model request timed out after client retries. Existing files are preserved; "
+                    "the provider may have consumed tokens without returning usage.",
+                    token_accounting_complete=False,
+                )
+                self.save_progress(stage, step, usage, messages, result, started)
+                break
             usage.calls += 1
             if response.usage is None:
                 raise ValueError("The gateway omitted usage; token optimization cannot be measured reliably")
@@ -218,4 +237,12 @@ class CodingAgent:
             self.tools.redact(json.dumps(log, ensure_ascii=False, indent=2)),
             encoding="utf-8",
         )
-        temporary.replace(self.log_directory / f"{stage}.json")
+        # Windows readers can briefly hold the destination without FILE_SHARE_DELETE.
+        for attempt in range(5):
+            try:
+                temporary.replace(self.log_directory / f"{stage}.json")
+                break
+            except PermissionError as error:
+                if os.name != "nt" or error.winerror not in {5, 32} or attempt == 4:
+                    raise
+                time.sleep(0.1 * 2**attempt)

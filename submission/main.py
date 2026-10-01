@@ -20,6 +20,22 @@ from verification import verify_application
 app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False)
 
 
+def integration_task(items: dict) -> str:
+    return (
+        "Integrate the completed application against the full feature contract below. "
+        "Start with the home page and route table. Within eight inspection calls, choose the first missing "
+        "core user journey, implement it, and test it before inspecting another module. "
+        "Inspect only the screens and server endpoints needed for that journey. Later batches may have "
+        "removed earlier routes or left implemented pages unreachable. Restore missing required user journeys "
+        "and controls, including creating fresh data from the home page. Check early features still work after "
+        "later changes; do not rely only on seeded URLs or direct API tests. Use real browser smoke checks "
+        "for creation, mutation, validation and reload. Fix integration failures while preserving working "
+        "behavior. Reuse existing tests and avoid redesigning the architecture. Build, check startup, and "
+        "report unresolved requirements honestly.\n\n"
+        + render_requirements(ordered_requirements(items), include_scenarios=False)
+    )
+
+
 @app.command()
 def main(
     requirement_path: Annotated[
@@ -43,6 +59,9 @@ def main(
     time_limit: Annotated[
         int, typer.Option(min=1, help="Implementation budget in seconds; final checks run afterward")
     ] = 7200,
+    integration_time_limit: Annotated[
+        int, typer.Option(min=0, help="Separate budget for checking integrated user journeys, in seconds")
+    ] = 600,
     repair_time_limit: Annotated[
         int, typer.Option(min=0, help="Separate budget for repairing failed final checks, in seconds")
     ] = 300,
@@ -167,6 +186,10 @@ def main(
         else:
             for item in batch:
                 runtime.events.mark_implementation_failed(item.identifier, result["summary"][:500])
+    if integration_time_limit:
+        agent.deadline = time.monotonic() + integration_time_limit
+        results.append(agent.run(integration_task(items), "integration"))
+        runtime.git.commit("Integrate application workflows")
     checks = verify_application(tools, list(verification_command or []))
     agent.deadline = time.monotonic() + repair_time_limit
     for attempt in range(2):
@@ -189,6 +212,7 @@ def main(
         "start_batch": start_batch,
         "reasoning_effort": reasoning_effort,
         "usage": asdict(agent.usage),
+        "token_accounting_complete": all(result.get("token_accounting_complete", True) for result in results),
         "results": results,
         "verification": checks,
         "official_pass_rate": None,

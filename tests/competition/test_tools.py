@@ -1,11 +1,40 @@
+import json
+import os
 import socket
 import sys
 import time
 from pathlib import Path
+from threading import Thread
+
+import pytest
+from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "submission"))
-from agent import compact_messages, parse_arguments
+from agent import CodingAgent, Usage, compact_messages, parse_arguments
 from tools import WorkspaceTools
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows denies replacement while readers hold the destination")
+def test_progress_retries_a_real_windows_reader_lock(tmp_path: Path) -> None:
+    tools = WorkspaceTools(tmp_path / "application")
+    logs = tmp_path / "logs"
+    with OpenAI(api_key="unused-local-test") as client:
+        agent = CodingAgent(client, "unused", tools, logs)
+        agent.save_progress("batch", 0, Usage(), [], {"status": "running"}, time.monotonic())
+        with (logs / "batch.json").open("rb") as reader:
+
+            def release_reader():
+                time.sleep(0.2)
+                reader.close()
+
+            release = Thread(target=release_reader)
+            release.start()
+            try:
+                agent.save_progress("batch", 1, Usage(), [], {"status": "finished"}, time.monotonic())
+            finally:
+                release.join()
+    assert json.loads((logs / "batch.json").read_text())["result"]["status"] == "finished"
+    assert not (logs / "batch.tmp").exists()
 
 
 def test_file_edits_reject_escape_ambiguity_and_secret(tmp_path: Path) -> None:

@@ -2,10 +2,24 @@
 
 import http.client
 import json
+import os
+import shlex
+import sys
 import time
+from pathlib import Path
 
 from server import application_server
 from tools import WorkspaceTools, bounded
+
+
+def browser_check(tools: WorkspaceTools) -> dict:
+    arguments = [sys.executable, str(Path(__file__).with_name("browser_check.py"))]
+    command = (
+        "& " + " ".join("'" + argument.replace("'", "''") + "'" for argument in arguments)
+        if os.name == "nt"
+        else shlex.join(arguments)
+    )
+    return {"command": "real browser startup and uncaught frontend errors", **tools.run_with_server(command, 180)}
 
 
 def startup_check(tools: WorkspaceTools) -> dict:
@@ -70,4 +84,6 @@ def verify_application(tools: WorkspaceTools, extra_commands: list[str]) -> list
         if check["returncode"] != 0:
             return checks
     checks.append(startup_check(tools))
+    if checks[-1]["returncode"] == 0:
+        checks.append(browser_check(tools))
     return checks

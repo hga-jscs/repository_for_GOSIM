@@ -15,6 +15,8 @@ def rank_results(records: list[dict]) -> list[dict]:
         raise ValueError("Evaluation outcomes must not be empty")
     reference_protocol = records[0]["protocol"]
     for record in records:
+        if record.get("token_accounting_complete", True) is not True:
+            raise ValueError("Incomplete token accounting cannot be used for candidate ranking")
         if set(record["outcomes"]) != reference_cases or record["protocol"] != reference_protocol:
             raise ValueError("All candidates must use the same cases, model and evaluation protocol")
         if any(type(value) is not bool for value in record["outcomes"].values()):
