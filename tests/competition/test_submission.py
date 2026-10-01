@@ -71,6 +71,30 @@ def test_archive_is_deterministic_and_entrypoint_accepts_official_arguments(tmp_
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["requirements"] == 1
     assert not (tmp_path / "output").exists()
+    evaluation = tmp_path / "agent/evaluation"
+    collected = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(evaluation),
+            "--confcutdir=" + str(evaluation),
+            "--application",
+            str(tmp_path / "output"),
+            "--target",
+            "github",
+            "--full",
+            "--collect-only",
+            "-p",
+            "no:cacheprovider",
+            "-q",
+        ],
+        cwd=tmp_path / "agent",
+        capture_output=True,
+        text=True,
+    )
+    assert collected.returncode == 0, collected.stdout + collected.stderr
+    assert "20 tests collected" in collected.stdout
 
 
 def test_official_runtime_records_implementation_without_claiming_test_pass(tmp_path: Path) -> None:

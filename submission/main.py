@@ -12,7 +12,14 @@ import typer
 from agent import CodingAgent
 from arcbench_agent_runtime import AgentRuntime
 from openai import OpenAI
-from requirements import load_requirements, make_batches, ordered_requirements, render_requirements, requirement_index
+from requirements import (
+    load_requirements,
+    make_batches,
+    ordered_requirements,
+    public_check_target,
+    render_requirements,
+    requirement_index,
+)
 from scaffold import prepare_workspace
 from tools import WorkspaceTools
 from verification import verify_application
@@ -64,7 +71,8 @@ def main(
     ] = 600,
     repair_time_limit: Annotated[
         int, typer.Option(min=0, help="Separate budget for repairing failed final checks, in seconds")
-    ] = 300,
+    ] = 900,
+    public_checks: Annotated[bool, typer.Option("--public-checks/--no-public-checks")] = True,
     verification_command: Annotated[
         list[str] | None, typer.Option(help="External verification command; repeatable")
     ] = None,
@@ -190,20 +198,21 @@ def main(
         agent.deadline = time.monotonic() + integration_time_limit
         results.append(agent.run(integration_task(items), "integration"))
         runtime.git.commit("Integrate application workflows")
-    checks = verify_application(tools, list(verification_command or []))
+    task_target = public_check_target(items) if public_checks else None
+    checks = verify_application(tools, list(verification_command or []), task_target)
     agent.deadline = time.monotonic() + repair_time_limit
-    for attempt in range(2):
+    for attempt in range(3):
         if all(check["returncode"] == 0 for check in checks) or time.monotonic() >= agent.deadline:
             break
         results.append(
             agent.run(
-                "Repair these independently executed startup/build checks. Preserve requirements and evaluation "
+                "Repair these independently executed delivery and public workflow checks. Preserve requirements and evaluation "
                 "tests. The frontend must build and backend npm start must serve frontend/dist using PORT.\n"
                 + json.dumps(checks),
                 f"repair-{attempt + 1}",
             )
         )
-        checks = verify_application(tools, list(verification_command or []))
+        checks = verify_application(tools, list(verification_command or []), task_target)
     runtime.git.commit("Verify application build and startup")
     summary = {
         "model": model_name,
@@ -211,12 +220,24 @@ def main(
         "variant": variant,
         "start_batch": start_batch,
         "reasoning_effort": reasoning_effort,
+        "public_check_target": task_target,
         "usage": asdict(agent.usage),
         "token_accounting_complete": all(result.get("token_accounting_complete", True) for result in results),
         "results": results,
         "verification": checks,
         "official_pass_rate": None,
-        "delivery_ready": bool(checks) and all(check["returncode"] == 0 for check in checks),
+        "delivery_ready": bool(checks)
+        and all(
+            check["returncode"] == 0 for check in checks if check["command"] != f"public {task_target} workflow checks"
+        ),
+        "public_workflow_passed": next(
+            (
+                check["returncode"] == 0
+                for check in checks
+                if check["command"] == f"public {task_target} workflow checks"
+            ),
+            None,
+        ),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "all_batches_finished": len([result for result in results if "requirements" in result]) == len(batches)
         and all(result["status"] == "finished" for result in results),

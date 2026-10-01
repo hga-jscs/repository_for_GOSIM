@@ -1,6 +1,7 @@
 # 来源与使用范围
 
 本目录中的 Agent 循环、工具、需求分批与启动验证为本次编写，遵循仓库根目录 MIT 许可证。
+提交包中的 `evaluation/` 检查根据用户提供的公开需求自行编写，用于本地验证和反馈修复；它们不是官方隐藏测试。
 
 `template/` 与 `arcbench-agent-runtime/` 来自用户于 2026-10-01 下载的官方
 `agent-blank-based.zip`。`template-files.json` 记录每个文件的 SHA-256，打包只收录清单文件。

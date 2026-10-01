@@ -9,13 +9,17 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
-def main() -> None:
+def browser_channel() -> str:
     edge = any(
         (Path(os.environ.get(variable, "")) / "Microsoft/Edge/Application/msedge.exe").is_file()
         for variable in ("ProgramFiles", "ProgramFiles(x86)")
     )
+    return "msedge" if os.name == "nt" and edge else "chromium"
+
+
+def main() -> None:
     with sync_playwright() as playwright:
-        channel = "msedge" if os.name == "nt" and edge else "chromium"
+        channel = browser_channel()
         if channel == "chromium" and not Path(playwright.chromium.executable_path).is_file():
             subprocess.run(
                 [sys.executable, "-m", "playwright", "install", "chromium", "--no-shell"],

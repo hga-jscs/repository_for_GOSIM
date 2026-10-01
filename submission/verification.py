@@ -8,18 +8,52 @@ import sys
 import time
 from pathlib import Path
 
+from browser_check import browser_channel
 from server import application_server
 from tools import WorkspaceTools, bounded
 
 
-def browser_check(tools: WorkspaceTools) -> dict:
-    arguments = [sys.executable, str(Path(__file__).with_name("browser_check.py"))]
-    command = (
+def python_command(arguments: list[str]) -> str:
+    arguments = [sys.executable, *arguments]
+    return (
         "& " + " ".join("'" + argument.replace("'", "''") + "'" for argument in arguments)
         if os.name == "nt"
         else shlex.join(arguments)
     )
+
+
+def browser_check(tools: WorkspaceTools) -> dict:
+    command = python_command([str(Path(__file__).with_name("browser_check.py"))])
     return {"command": "real browser startup and uncaught frontend errors", **tools.run_with_server(command, 180)}
+
+
+def public_workflow_check(tools: WorkspaceTools, target: str) -> dict:
+    source = Path(__file__).resolve().parent
+    evaluation = source / "evaluation" if (source / "evaluation").is_dir() else source.parent / "evaluation"
+    originals = {path: path.read_bytes() for path in evaluation.glob("*.py")}
+    command = python_command(
+        [
+            "-m",
+            "pytest",
+            str(evaluation),
+            "--confcutdir=" + str(evaluation),
+            "--application",
+            str(tools.workspace),
+            "--target",
+            target,
+            "--full",
+            "--browser-channel",
+            browser_channel(),
+            "-p",
+            "no:cacheprovider",
+            "--tb=short",
+            "-q",
+        ]
+    )
+    result = {"command": f"public {target} workflow checks", **tools.run_command(command, 180)}
+    if not originals or any(not path.is_file() or path.read_bytes() != content for path, content in originals.items()):
+        result.update(returncode=1, output="Independent evaluation files are absent or were modified")
+    return result
 
 
 def startup_check(tools: WorkspaceTools) -> dict:
@@ -49,7 +83,7 @@ def startup_check(tools: WorkspaceTools) -> dict:
     }
 
 
-def verify_application(tools: WorkspaceTools, extra_commands: list[str]) -> list[dict]:
+def verify_application(tools: WorkspaceTools, extra_commands: list[str], task_target: str | None = None) -> list[dict]:
     checks = []
     for folder in ("frontend", "backend"):
         package = tools.workspace / folder / "package.json"
@@ -86,4 +120,6 @@ def verify_application(tools: WorkspaceTools, extra_commands: list[str]) -> list
     checks.append(startup_check(tools))
     if checks[-1]["returncode"] == 0:
         checks.append(browser_check(tools))
+    if checks[-1]["returncode"] == 0 and task_target:
+        checks.append(public_workflow_check(tools, task_target))
     return checks

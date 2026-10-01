@@ -120,3 +120,13 @@ def requirement_index(requirements: dict[str, Requirement]) -> str:
         f"{item.identifier}: {item.name}; depends on {', '.join(item.dependencies) or 'none'}"
         for item in ordered_requirements(requirements)
     )
+
+
+def public_check_target(requirements: dict[str, Requirement]) -> str | None:
+    parents = next(iter(requirements.values())).parents
+    root_name = parents[0][1] if parents else ""
+    if root_name == "GitHub Collaboration Platform Core Requirements" and len(requirements) >= 47:
+        return "github"
+    if root_name == "Core Requirements for an Online Spreadsheet Data Workspace" and len(requirements) >= 24:
+        return "sheet"
+    return None

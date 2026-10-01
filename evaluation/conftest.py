@@ -8,9 +8,21 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "submission"))
+agent_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(agent_root / "submission" if (agent_root / "submission").is_dir() else agent_root))
 from processes import ProcessGroup
 from tools import WorkspaceTools
+
+SERVER_LOG = pytest.StashKey[Path]()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    path = item.config.stash.get(SERVER_LOG, None)
+    if report.failed and path and path.is_file():
+        report.sections.append(("Application server log", path.read_text(encoding="utf-8", errors="replace")[-4000:]))
 
 
 def pytest_addoption(parser):
@@ -29,7 +41,9 @@ def application(request, tmp_path_factory):
     tools = WorkspaceTools(workspace)
     environment = tools.command_environment() | {"PORT": str(port)}
     arguments = ["cmd.exe", "/d", "/c", "npm start"] if os.name == "nt" else ["npm", "start"]
-    with (tmp_path_factory.mktemp("server") / "output.log").open("wb") as output, ProcessGroup() as group:
+    log_path = tmp_path_factory.mktemp("server") / "output.log"
+    request.config.stash[SERVER_LOG] = log_path
+    with log_path.open("wb") as output, ProcessGroup() as group:
         process = subprocess.Popen(
             arguments,
             cwd=workspace / "backend",
