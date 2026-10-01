@@ -1,5 +1,1 @@
-/submission/** text eol=lf
-/evaluation/** text eol=lf
-/tests/competition/** text eol=lf
-/提交说明.md text eol=lf
-/实验结果.md text eol=lf
+* text=auto eol=lf

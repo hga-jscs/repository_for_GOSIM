@@ -9,7 +9,7 @@ from threading import Thread
 import pytest
 from openai import OpenAI
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "submission"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from agent import CodingAgent, Usage, compact_messages, parse_arguments
 from tools import WorkspaceTools
 

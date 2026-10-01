@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-MODULE_PATH = Path(__file__).resolve().parents[2] / "submission" / "requirements.py"
+MODULE_PATH = Path(__file__).resolve().parents[2] / "requirements.py"
 SPEC = importlib.util.spec_from_file_location("competition_requirements", MODULE_PATH)
 requirements_module = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = requirements_module

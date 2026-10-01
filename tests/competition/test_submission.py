@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 from arcbench_agent_runtime import AgentRuntime
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "submission"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from package import package
 from scaffold import prepare_workspace
 from tools import WorkspaceTools
@@ -17,7 +18,7 @@ from verification import browser_check, startup_check, verify_application
 
 
 def test_official_template_integrity_and_preserve_existing_project(tmp_path: Path) -> None:
-    source = Path(__file__).resolve().parents[2] / "submission"
+    source = Path(__file__).resolve().parents[2]
     manifest = json.loads((source / "template-files.json").read_text())
     assert all(hashlib.sha256((source / name).read_bytes()).hexdigest() == digest for name, digest in manifest.items())
     (tmp_path / ".arc").mkdir()
@@ -71,6 +72,23 @@ def test_archive_is_deterministic_and_entrypoint_accepts_official_arguments(tmp_
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["requirements"] == 1
     assert not (tmp_path / "output").exists()
+    environment_result = subprocess.run(
+        [sys.executable, str(tmp_path / "agent/main.py"), "--plan-only"],
+        cwd=tmp_path / "agent",
+        env=os.environ
+        | {
+            "ARCBENCH_TASK_DIR": str(source.parent),
+            "ARCBENCH_OUTPUT_DIR": str(tmp_path / "environment-output"),
+            "ARCBENCH_TASK_TYPE": "web",
+            "ARCBENCH_WEB_PORT": "39998",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert environment_result.returncode == 0, environment_result.stderr
+    assert json.loads(environment_result.stdout) == json.loads(result.stdout)
+    assert not (tmp_path / "environment-output").exists()
     evaluation = tmp_path / "agent/evaluation"
     collected = subprocess.run(
         [

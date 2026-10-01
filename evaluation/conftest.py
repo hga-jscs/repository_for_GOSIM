@@ -8,8 +8,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-agent_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(agent_root / "submission" if (agent_root / "submission").is_dir() else agent_root))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from processes import ProcessGroup
 from tools import WorkspaceTools
 

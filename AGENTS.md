@@ -1,20 +1,16 @@
-# mini-SWE-agent overview
+# GOSIM Agent overview
 
-- mini-SWE-agent implements an AI software engineering agent that solves github issues and similar programming challenges
-- The idea of this project is to write the simplest, smallest, most readable agent.
+This branch implements a Python Agent for ARC-Bench web tasks.
 
-The project is structured as
+- `main.py`: official CLI and staged implementation flow.
+- `agent.py`, `tools.py`, `processes.py`: model loop, file tools and owned process cleanup.
+- `requirements.py`, `scaffold.py`: requirement dependencies and official application template.
+- `verification.py`, `evaluation/`: build, browser and public workflow checks.
+- `package.py`: deterministic submission ZIP with a runtime file allowlist.
+- `tests/competition/`: Agent regression tests; run `python -m pytest -q`.
 
-```bash
-minisweagent/__init__  # Protocols/interfaces for all base classes
-minisweagent/agents  # Agent control flow & loop
-minisweagent/environments  # Executing agent actions
-minisweagent/models  # LM interfaces
-minisweagent/run  # Run scripts that serve as an entry point
-```
-
-- The project embraces polymorphism: Every individual class should be simple, but we offer alternatives
-- Every use case should start with a run script, that picks one agent, environment, and model class to run
+Keep `main.py` and `requirements.txt` at repository and submission ZIP root.
+Keep the original implementation on the `main` branch unchanged.
 
 # Style guide
 
