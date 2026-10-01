@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-01",
+  "reported_failure": {
+    "http_status": 400,
+    "code": "proxy_error",
+    "transport_error": "connection reset by peer",
+    "phase": "batch continuation"
+  },
+  "coverage": "Real SDK error values for the captured HTTP400 body, real TCP disconnect/stall tests, real DeepSeek responses forwarded through a connection-dropping local proxy. No fabricated successful model responses.",
+  "official_gateway_tested": false,
+  "initial_recovery_case": {
+    "exit_code": 0,
+    "injected_fault": "Third local TCP request connection closed before forwarding; every successful response came from real DeepSeek",
+    "same_retry_payload": true,
+    "preserved_requirements": true,
+    "upstream_successful_responses": 16,
+    "official_gateway_tested": false,
+    "archive_sha256": "6ed9e0263a6b80a2127e11e986c5bbb71fcec04d43176df296e02b674e5a6ed7",
+    "usage": {
+      "input_tokens": 138053,
+      "output_tokens": 4506,
+      "cached_tokens": 118144,
+      "calls": 16,
+      "tool_calls": 22,
+      "request_attempts": 17,
+      "failed_requests": 1,
+      "elapsed_seconds": 42.059
+    },
+    "token_accounting_complete": false,
+    "delivery_ready": true,
+    "model_requests_stopped": false,
+    "all_batches_finished": false,
+    "checks": [
+      {
+        "command": "npm --prefix frontend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix backend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix frontend run build",
+        "returncode": 0
+      },
+      {
+        "command": "backend npm start + HTTP GET / on an unused port",
+        "returncode": 0
+      },
+      {
+        "command": "real browser startup and uncaught frontend errors",
+        "returncode": 0
+      }
+    ]
+  },
+  "final_archive_case": {
+    "exit_code": 0,
+    "injected_fault": "First local TCP request closed before forwarding; all successful completions are from real DeepSeek; retained application from previous smoke",
+    "same_retry_payload": true,
+    "preserved_requirements": true,
+    "official_gateway_tested": false,
+    "archive_sha256": "e6e09c68378620e649d2e8a1d4f5bf32c8669b6fa7b6e029712dfd66cdcfc178",
+    "usage": {
+      "input_tokens": 46320,
+      "output_tokens": 1190,
+      "cached_tokens": 34816,
+      "calls": 8,
+      "tool_calls": 8,
+      "request_attempts": 9,
+      "failed_requests": 1,
+      "missing_usage_calls": 0,
+      "elapsed_seconds": 16.226
+    },
+    "token_accounting_complete": false,
+    "delivery_ready": true,
+    "model_requests_stopped": false,
+    "all_batches_finished": false,
+    "checks": [
+      {
+        "command": "npm --prefix frontend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix backend install --no-audit --no-fund",
+        "returncode": 0
+      },
+      {
+        "command": "npm --prefix frontend run build",
+        "returncode": 0
+      },
+      {
+        "command": "backend npm start + HTTP GET / on an unused port",
+        "returncode": 0
+      },
+      {
+        "command": "real browser startup and uncaught frontend errors",
+        "returncode": 0
+      }
+    ]
+  },
+  "agent_tests": {
+    "windows_passed": 65,
+    "linux_passed": 64,
+    "linux_windows_only_skipped": 1
+  }
+}

@@ -7,8 +7,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from jinja2 import StrictUndefined, Template
-from openai import APITimeoutError, OpenAI
+from openai import APIConnectionError, APIStatusError, OpenAI
+from openai.types.chat import ChatCompletion
 
+from model_requests import request_retry_delay, retryable_model_error
 from tools import TOOLS, WorkspaceTools
 
 SYSTEM = """You implement a real web application from authoritative requirements.
@@ -55,6 +57,9 @@ class Usage:
     cached_tokens: int = 0
     calls: int = 0
     tool_calls: int = 0
+    request_attempts: int = 0
+    failed_requests: int = 0
+    missing_usage_calls: int = 0
     elapsed_seconds: float = 0.0
 
 
@@ -101,6 +106,9 @@ class CodingAgent:
         deadline: float | None = None,
         compact: bool = True,
         reasoning_effort: str = "low",
+        max_request_attempts: int = 5,
+        request_time_limit: float = 180,
+        retry_delay: float = 2,
     ):
         self.client = client
         self.model = model
@@ -111,10 +119,94 @@ class CodingAgent:
         self.deadline = deadline
         self.compact = compact
         self.reasoning_effort = reasoning_effort
+        if max_request_attempts < 1 or request_time_limit <= 0 or retry_delay < 0:
+            raise ValueError("Request attempts and time limit must be positive; retry delay must be nonnegative")
+        self.max_request_attempts = max_request_attempts
+        self.request_time_limit = request_time_limit
+        self.retry_delay = retry_delay
+        self.requests_stopped = False
+        self.token_accounting_complete = True
         self.usage = Usage()
         log_directory.mkdir(parents=True, exist_ok=True)
 
+    def request_completion(
+        self, messages: list[dict], stage: str, step: int, usage: Usage, result: dict, started: float
+    ) -> ChatCompletion | None:
+        deadline = min(time.monotonic() + self.request_time_limit, self.deadline or float("inf"))
+        request_messages = compact_messages(messages) if self.compact else messages
+        for attempt in range(self.max_request_attempts):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self.requests_stopped = attempt > 0
+                result.update(
+                    status="api_unavailable" if self.requests_stopped else "time_limit",
+                    summary="Model request deadline reached; existing files are preserved",
+                )
+                self.save_progress(stage, step, usage, messages, result, started)
+                return None
+            usage.request_attempts += 1
+            self.save_progress(stage, step, usage, messages, result, started)
+            try:
+                return self.client.with_options(timeout=min(180, remaining), max_retries=0).chat.completions.create(
+                    model=self.model,
+                    messages=request_messages,
+                    tools=TOOLS,
+                    max_tokens=self.max_tokens,
+                    extra_body={"reasoning_effort": self.reasoning_effort},
+                )
+            except (APIConnectionError, APIStatusError) as error:
+                usage.failed_requests += 1
+                self.token_accounting_complete = False
+                result["token_accounting_complete"] = False
+                retryable = retryable_model_error(error)
+                delay = request_retry_delay(error, attempt, self.retry_delay)
+                retry = retryable and attempt + 1 < self.max_request_attempts and time.monotonic() + delay < deadline
+                failure = {
+                    "step": step + 1,
+                    "attempt": attempt + 1,
+                    "type": type(error).__name__,
+                    "status_code": getattr(error, "status_code", None),
+                    "retryable": retryable,
+                    "message": self.tools.redact(str(error))[:1500],
+                    "retry_in_seconds": delay if retry else None,
+                }
+                result.setdefault("api_failures", []).append(failure)
+                if not retry:
+                    self.requests_stopped = True
+                    result.update(
+                        status="api_unavailable" if retryable else "api_error",
+                        summary="Model requests stopped; existing files are preserved for local verification. "
+                        + failure["message"],
+                    )
+                self.save_progress(stage, step, usage, messages, result, started)
+                print(
+                    json.dumps({"stage": stage, "event": "model_retry" if retry else result["status"], **failure}),
+                    flush=True,
+                )
+                if not retry:
+                    return None
+                time.sleep(delay)
+        return None
+
+    def record_usage(self, response: ChatCompletion, usage: Usage, result: dict) -> None:
+        usage.calls += 1
+        if response.usage is None:
+            usage.missing_usage_calls += 1
+            self.token_accounting_complete = False
+            result["token_accounting_complete"] = False
+            return
+        usage.input_tokens += response.usage.prompt_tokens
+        usage.output_tokens += response.usage.completion_tokens
+        usage.cached_tokens += getattr(response.usage.prompt_tokens_details, "cached_tokens", 0) or 0
+
     def run(self, task: str, stage: str) -> dict:
+        if self.requests_stopped:
+            return {
+                "stage": stage,
+                "status": "api_unavailable",
+                "summary": "Model requests already stopped",
+                "token_accounting_complete": self.token_accounting_complete,
+            }
         messages = [
             {
                 "role": "system",
@@ -150,31 +242,10 @@ class CodingAgent:
                         "Do not start new abstractions or expand the test suite.",
                     }
                 )
-            remaining = max(1, self.deadline - time.monotonic()) if self.deadline else 180
-            try:
-                response = self.client.with_options(timeout=min(180, remaining)).chat.completions.create(
-                    model=self.model,
-                    messages=compact_messages(messages) if self.compact else messages,
-                    tools=TOOLS,
-                    max_tokens=self.max_tokens,
-                    extra_body={"reasoning_effort": self.reasoning_effort},
-                )
-            except APITimeoutError:
-                result.update(
-                    status="api_timeout",
-                    summary="Model request timed out after client retries. Existing files are preserved; "
-                    "the provider may have consumed tokens without returning usage.",
-                    token_accounting_complete=False,
-                )
-                self.save_progress(stage, step, usage, messages, result, started)
+            response = self.request_completion(messages, stage, step, usage, result, started)
+            if response is None:
                 break
-            usage.calls += 1
-            if response.usage is None:
-                raise ValueError("The gateway omitted usage; token optimization cannot be measured reliably")
-            usage.input_tokens += response.usage.prompt_tokens
-            usage.output_tokens += response.usage.completion_tokens
-            details = response.usage.prompt_tokens_details
-            usage.cached_tokens += getattr(details, "cached_tokens", 0) or 0
+            self.record_usage(response, usage, result)
             message = response.choices[0].message
             self.save_progress(stage, step, usage, messages, result, started)
             if response.choices[0].finish_reason == "length":

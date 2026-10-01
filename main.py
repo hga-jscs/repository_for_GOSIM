@@ -131,7 +131,7 @@ def main(
     run_directory = workspace.parent / f"{workspace.name}-runs" / str(time.time_ns())
     started = time.monotonic()
     agent = CodingAgent(
-        OpenAI(api_key=key, base_url=endpoint, max_retries=2),
+        OpenAI(api_key=key, base_url=endpoint, max_retries=0),
         model_name,
         tools,
         run_directory,
@@ -156,7 +156,7 @@ def main(
     )
     results = [agent.run(task, "foundation")] if variant == "atomic" and start_batch == 1 else []
     for number, batch in enumerate(batches[start_batch - 1 :], start_batch):
-        if time.monotonic() >= started + time_limit:
+        if agent.requests_stopped or time.monotonic() >= started + time_limit:
             break
         task = (
             f"Implement batch {number}/{len(batches)} in the existing application. "
@@ -195,7 +195,7 @@ def main(
         else:
             for item in batch:
                 runtime.events.mark_implementation_failed(item.identifier, result["summary"][:500])
-    if integration_time_limit:
+    if integration_time_limit and not agent.requests_stopped:
         agent.deadline = time.monotonic() + integration_time_limit
         results.append(agent.run(integration_task(items), "integration"))
         runtime.git.commit("Integrate application workflows")
@@ -203,7 +203,11 @@ def main(
     checks = verify_application(tools, list(verification_command or []), task_target)
     agent.deadline = time.monotonic() + repair_time_limit
     for attempt in range(3):
-        if all(check["returncode"] == 0 for check in checks) or time.monotonic() >= agent.deadline:
+        if (
+            agent.requests_stopped
+            or all(check["returncode"] == 0 for check in checks)
+            or time.monotonic() >= agent.deadline
+        ):
             break
         results.append(
             agent.run(
@@ -225,7 +229,8 @@ def main(
         "reasoning_effort": reasoning_effort,
         "public_check_target": task_target,
         "usage": asdict(agent.usage),
-        "token_accounting_complete": all(result.get("token_accounting_complete", True) for result in results),
+        "token_accounting_complete": agent.token_accounting_complete,
+        "model_requests_stopped": agent.requests_stopped,
         "results": results,
         "verification": checks,
         "official_pass_rate": None,
@@ -250,7 +255,8 @@ def main(
         if summary["delivery_ready"]:
             runtime.events.mark_run_completed(
                 "Application build and startup verified; official evaluation is pending. "
-                f"All implementation stages finished: {summary['all_batches_finished']}"
+                f"All implementation stages finished: {summary['all_batches_finished']}. "
+                f"Model requests stopped after an API error: {agent.requests_stopped}"
             )
         else:
             runtime.events.mark_run_failed("Application build or startup verification failed")

@@ -11,6 +11,7 @@ import typer
 FILES = (
     "main.py",
     "agent.py",
+    "model_requests.py",
     "tools.py",
     "processes.py",
     "requirements.py",
